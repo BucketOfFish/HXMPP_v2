@@ -57,6 +57,10 @@ module HNMPP(
 
     always @(posedge clk) begin
 
+        //-----------//
+        // RESET HNM //
+        //-----------//
+
         if (reset == 1'b1) begin // reset pushed - takes precedence over everything else
             HNM_writeReady <= 1'b0; // do not write until reset is complete
             HNM_readReady <= 1'b0; // do not read until reset is complete
