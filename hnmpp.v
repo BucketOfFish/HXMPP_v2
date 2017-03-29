@@ -6,9 +6,10 @@ module HNMPP(
     input write,
     input read,
     input reset,
-    output HNM_writeReady,
-    output HNM_readReady,
-    output HNM_SSIDHit
+    output reg HNM_writeReady,
+    output reg HNM_readReady,
+    output reg HNM_SSIDHit,
+    output testResult
     );
 
     `include "MyParameters.vh"
@@ -17,20 +18,22 @@ module HNMPP(
     // SPLIT SSID //
     //------------//
 
-    wire [NROWS_HNM-1:0] SSID_Row;
-    wire [NCOLS_HNM-1:0] SSID_Col;
+    wire [ROWINDEXBITS_HNM-1:0] SSID_Row;
+    wire [COLINDEXBITS_HNM-1:0] SSID_Col;
     assign {SSID_Row, SSID_Col} = SSID;
 
     //-------------//
     // HNM BRAM IP //
     //-------------//
 
-    reg [NROWS_HNM-1:0] rowToWrite;
+    reg [ROWINDEXBITS_HNM-1:0] rowToWrite;
     reg [NCOLS_HNM-1:0] dataToStore;
     reg writeToBRAM;
-    reg [NROWS_HNM-1:0] rowToRead;
-    reg [NCOLS_HNM-1:0] dataRead;
+    reg [ROWINDEXBITS_HNM-1:0] rowToRead;
+    wire [NCOLS_HNM-1:0] dataRead;
     reg readFromBRAM;
+
+    assign testResult = (dataRead == 0); // used for reset test
 
     hnmpp HNM (
         .clka(clk),
@@ -47,12 +50,12 @@ module HNMPP(
         .doutb(dataRead)
         );
 
-    //-----------//
-    // RESET HNM //
-    //-----------//
+    //--------------//
+    // RESET STATUS //
+    //--------------//
 
     reg resetStatus = 2'b00; // 00 = idle; 01 = resetting BRAM; 10 = last row reset; 11 = complete
-    reg [NROWS_HNM-1:0] resetRow = 0;
+    reg [ROWINDEXBITS_HNM-1:0] resetRow = 0;
     reg [3:0] resetDelay = 0; // wait a safe amount of time after resetting before resuming read and write
 
     always @(posedge clk) begin
