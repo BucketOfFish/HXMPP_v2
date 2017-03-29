@@ -17,7 +17,7 @@ module Testbench();
     reg reset = 0;
     reg read = 1;
     reg write = 1;
-    reg [7:0] SSID;
+    reg [7:0] SSID_write, SSID_read;
     
     /*Counter counter(
         .clk(clk),
@@ -26,17 +26,6 @@ module Testbench();
         .count(SSID_write)
     );*/
     
-    /*SSID_FIFO SSID_List (
-        .clk(clk),      // input wire clk
-        .srst(reset),    // input wire srst
-        .din(SSID_write),      // input wire [7 : 0] din
-        .wr_en(write),  // input wire wr_en
-        .rd_en(read),  // input wire rd_en
-        .dout(SSID_read),    // output wire [7 : 0] dout
-        .full(),    // output wire full
-        .empty()  // output wire empty
-    );*/
-
     //------------------//
     // VALIDATION TESTS //
     //------------------//
@@ -52,8 +41,8 @@ module Testbench();
         end
     end
 
-    initial begin
-        $monitor ("%g\t%b\t%b", $time, SSID, testResult);
+    /*initial begin
+        $monitor ("%g\t%b\t%b", $time, SSID_write, testResult);
         testNumber = 2'b01; // print BRAM
         $display ("Printing initial BRAM");
         #5 testNumber = 2'b00;
@@ -63,13 +52,13 @@ module Testbench();
         #1000 testNumber = 2'b01; // print BRAM again
         $display ("Printing final BRAM");
         #5 testNumber = 2'b00;
-    end
+    end*/
 
     always @(posedge clk) begin
 
         if (testing == 2'b01) begin // print BRAM
             read <= 1'b1; // read enabled
-            SSID <= testingRow; // row to read
+            SSID_read <= testingRow; // row to read
             testingRow <= testingRow + 1; // increment row
             if (testingRow >= NROWS_HNM-1) begin // if the row we just read is the last one
                 testingRow <= 0;
@@ -85,12 +74,14 @@ module Testbench();
 
     HNMPP HNM (
         .clk(clk),
-        .SSID(SSID),
+        .SSID_write(SSID_write),
         .write(write),
+        .SSID_read(SSID_read),
         .read(read),
         .reset(reset),
         .HNM_writeReady(),
         .HNM_readReady(),
+        .HNM_SSID_read(),
         .HNM_SSIDHit(),
         .testResult(testResult)
     );
