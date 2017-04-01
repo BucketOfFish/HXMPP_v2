@@ -64,7 +64,7 @@ module HNMPP(
 
     reg [ROWINDEXBITS_HNM-1:0] queueWriteRow [QUEUESIZE-1:0];
     reg [NCOLS_HNM-1:0] queueNewHitsRow [QUEUESIZE-1:0];
-    reg [QUEUESIZEBITS-1:0] nInWriteQueue;
+    reg [QUEUESIZEBITS-1:0] nInWriteQueue = 0;
     reg [QUEUESIZE-1:0] waitTimeWriteQueue [2:0];
 
     wire writeQueueShifted;
@@ -80,8 +80,8 @@ module HNMPP(
 
     reg [ROWINDEXBITS_HNM-1:0] queueReadRow [QUEUESIZE-1:0];
     reg [COLINDEXBITS_HNM-1:0] queueReadCol [QUEUESIZE-1:0];
-    reg [QUEUESIZE-1:0] queueReadWholeRow;
-    reg [QUEUESIZEBITS-1:0] nInReadQueue;
+    reg [QUEUESIZE-1:0] queueReadWholeRow = 0;
+    reg [QUEUESIZEBITS-1:0] nInReadQueue = 0;
     reg [QUEUESIZE-1:0] waitTimeReadQueue [2:0];
 
     wire readQueueShifted;
@@ -224,6 +224,7 @@ module HNMPP(
             writeToBRAM <= 1'b0; // not currently writing
 
             nInReadQueue = 0;
+            nInWriteQueue = 0;
 
             resetStatus <= 1'b1; // start resetting BRAM
             resetRow <= 0; // start with the first row
@@ -272,6 +273,7 @@ module HNMPP(
 
             if (nInWriteQueue > 0) begin
 
+$display("%d\t%d\t%b\t%b", nInWriteQueue, waitTimeWriteQueue[0], queueWriteRow[0][6:0], queueNewHitsRow[0][12:0]);
                 if (waitTimeWriteQueue[0] > 0) begin // nothing to be written yet
                     for (reg [QUEUESIZEBITS-1:0] queueN = 0; queueN < QUEUESIZE; queueN = queueN + 1) begin
                         waitTimeWriteQueue[queueN] <= waitTimeWriteQueue[queueN] - 1; // reduce wait times
@@ -285,8 +287,10 @@ module HNMPP(
                         queueNewHitsRow[queueN] <= queueNewHitsRow[queueN+1]; // pop an item
                     end
                     nInWriteQueue <= nInWriteQueue - 1; // reduce number of items in queue
+                    writeToBRAM <= 1'b1;
                     rowToWrite <= queueWriteRow[0];
                     dataToWrite <= dataRead | queueNewHitsRow[0]; // existing hits on row plus new hits
+$display("Gonna write!\t%b\t%b", dataRead[12:0], queueNewHitsRow[0][12:0]);
                 end
             end
 
@@ -330,7 +334,8 @@ module HNMPP(
                 inQueue = 0;
 
                 for (reg [QUEUESIZEBITS-1:0] queueN = 0; queueN < QUEUESIZE - 1; queueN = queueN + 1) begin
-                    if (queueWriteRow[queueN] == SSID_writeRow) begin
+                    if (queueWriteRow[queueN] == SSID_writeRow && waitTimeWriteQueue[queueN] > 0) begin
+                        // if the row was already set to write on the clock edge, don't try to add to that row
                         queueNewHitsRow[queueN] <= queueNewHitsRow[queueN] | (1'b1 << SSID_writeCol);
                         inQueue = 1;
                     end
@@ -339,7 +344,7 @@ module HNMPP(
                 if (!inQueue) begin
                     queueWriteRow[nInWriteQueueAfterShift] <= SSID_writeRow; // place in queue until read completes
                     queueNewHitsRow[nInWriteQueueAfterShift] <= 1'b1 << SSID_writeCol; // shift by col number
-                    waitTimeWriteQueue[nInWriteQueueAfterShift] <= BRAM_READDELAY; // wait long enough to read row
+                    waitTimeWriteQueue[nInWriteQueueAfterShift] <= BRAM_READDELAY;
                     nInWriteQueue <= nInWriteQueueAfterShift + 1; // increase the number of items in queue
                 end
             end
@@ -349,7 +354,6 @@ module HNMPP(
             //-----------//
 
             else if (writeRow == 1'b1) begin // write a whole row for testing purposes - no need for queue
-//$display("%b\t%b\t%b", writeToBRAM, rowWrite, dataWrite[6:0]);
                 writeToBRAM <= 1'b1;
                 rowToWrite <= rowWrite;
                 dataToWrite <= dataWrite;
@@ -372,7 +376,15 @@ module HNMPP(
             // ADD TO ROW READ QUEUE //
             //-----------------------//
 
-            if (write == 1'b1 || readRow == 1'b1) begin // read a whole row - needed before writing
+            if (write == 1'b1) begin // read a whole row - needed before writing
+                rowToRead <= SSID_writeRow; // request read for this row
+                queueReadRow[nInReadQueueAfterShift] <= SSID_writeRow; // place row in queue until read completes
+                queueReadWholeRow[nInReadQueueAfterShift] <= 1; // mark as a whole-row read
+                waitTimeReadQueue[nInReadQueueAfterShift] <= BRAM_READDELAY; // set the wait time
+                nInReadQueue <= nInReadQueueAfterShift + 1; // increase the number of items in queue
+            end
+
+            else if (readRow == 1'b1) begin // read a whole row
                 rowToRead <= rowRead; // request read for this row
                 queueReadRow[nInReadQueueAfterShift] <= rowRead; // then place row in queue until read completes
                 queueReadWholeRow[nInReadQueueAfterShift] <= 1; // mark as a whole-row read

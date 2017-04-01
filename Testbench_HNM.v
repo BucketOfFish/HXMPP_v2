@@ -58,11 +58,16 @@ module Testbench_HNM;
 
     reg [2:0] testNumber = 0;
     // 000 = none; 001 = print BRAM; 010 = store alternating; 011 = store incrementing
-    // 100 = read SSIDs; 101 = store checkerboard pattern
+    // 100 = read SSIDs; 101 = store checkerboard pattern; 110 = store SSIDs from list
 
     reg [2:0] currentTest = 0; // currently performing test number
     reg [ROWINDEXBITS_HNM-1:0] testingRow = 0; // row number for reading and writing
     reg [SSIDBITS-1:0] testingSSID = 0; // SSID for reading and writing
+
+    reg [ROWINDEXBITS_HNM-1:0] testingSSID_row[45:0] = {8, 8, 8, 8, 8, 8, 8, 8, 2, 9, 4, 12, 3, 3, 1, 4, 4, 4, 4, 4, 4, 4, 4};
+    reg [COLINDEXBITS_HNM-1:0] testingSSID_col[45:0] = {0, 3, 7, 8, 8, 8, 5, 11, 11, 7, 1, 7, 5, 6, 8, 12, 4, 4, 7, 2, 1, 8, 6};
+    //8 8 8 8 8 8 8  8  2 9 4 12 3 3 1  4 4 4 4 4 4 4 4
+    //0 3 7 8 8 8 5 11 11 7 1  7 5 6 8 12 4 4 7 2 1 8 6
 
     always @(testNumber) begin // whenever the test number changes
         if (currentTest == 2'b00) begin // if not already testing
@@ -72,8 +77,9 @@ module Testbench_HNM;
 
     initial begin
 
-        $monitor ("%g\t%b\t%b", $time, rowPassed, rowReadOutput[6:0]);
-        $monitor ("%g\t%b\t%b", $time, SSID_passed[6:0], HNM_readOutput);
+        //$monitor ("%g\t%b\t%b", $time, rowPassed, rowReadOutput[6:0]);
+        //$monitor ("%g\t%b\t%b", $time, rowPassed, rowReadOutput[12:0]);
+        //$monitor ("%g\t%b\t%b", $time, SSID_passed[6:0], HNM_readOutput);
 
         testNumber = 3'b001; // print BRAM
         $display ("Printing initial BRAM");
@@ -87,25 +93,29 @@ module Testbench_HNM;
         $display ("Printing second BRAM");
         #5 testNumber = 3'b000;
 
-        //#2000 testNumber = 3'b010; // store alternating 0's and 1's
-        //$display ("Storing alternating bits");
-        //#5 testNumber = 3'b000;
-
         //#2000 testNumber = 3'b011; // store row numbers
         //$display ("Storing row numbers");
         //#5 testNumber = 3'b000;
 
-        #2000 testNumber = 3'b101; // store checkerboard pattern
-        $display ("Storing checkerboard pattern");
+        //#2000 testNumber = 3'b010; // store alternating 0's and 1's, one at a time
+        //$display ("Storing alternating bits");
+        //#5 testNumber = 3'b000;
+
+        #2000 testNumber = 3'b110; // store SSIDs from list
+        $display ("Storing SSIDs from list");
         #5 testNumber = 3'b000;
+
+        //#2000 testNumber = 3'b101; // store checkerboard pattern, one row at a time
+        //$display ("Storing checkerboard pattern");
+        //#5 testNumber = 3'b000;
 
         #2000 testNumber = 3'b001; // print BRAM again
         $display ("Printing final BRAM");
         #5 testNumber = 3'b000;
 
-        #2000 testNumber = 3'b100; // print SSIDs
-        $display ("Printing SSIDs");
-        #5 testNumber = 3'b000;
+        //#2000 testNumber = 3'b100; // print SSIDs
+        //$display ("Printing SSIDs");
+        //#5 testNumber = 3'b000;
     end
 
     always @(posedge clk) begin
@@ -127,8 +137,10 @@ module Testbench_HNM;
         end
 
         else if (currentTest == 3'b010) begin // store alternating bits
-            writeSSID <= 1'b1; // write enabled
-            SSID_toWrite <= testingSSID[0]; // write a 0 or 1 based on the last digit of the SSID
+            if (testingSSID[0] == 1'b1) begin // write based on the last digit of the SSID
+                writeSSID <= 1'b1; // write enabled
+                SSID_toWrite <= testingSSID;
+            end
             testingSSID <= testingSSID + 1; // increment SSID
             if (testingSSID >= NROWS_HNM-1) begin // if the SSID we just read is the last one
                 testingSSID <= 0;
@@ -171,6 +183,16 @@ module Testbench_HNM;
                 currentTest <= 0;
             end
         end
-    end
 
+        else if (currentTest == 3'b110) begin // store SSIDs from list
+            writeSSID <= 1'b1; // write enabled
+            SSID_toWrite <= {testingSSID_row[testingSSID], testingSSID_col[testingSSID]};
+            testingSSID <= testingSSID + 1; // increment SSID
+            if (testingSSID >= 45-1) begin // if the SSID we just read is the last one
+                testingSSID <= 0;
+                testNumber <= 3'b000; // stop testing
+                currentTest <= 0;
+            end
+        end
+    end
 endmodule
