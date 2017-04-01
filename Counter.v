@@ -1,11 +1,33 @@
 `timescale 1ns / 1ps
 
+//-------//
+// Clock //
+//-------//
+
+module Clock
+(output reg clk);
+
+    initial begin
+        $display ("Starting clock");
+        clk = 0;
+    end
+
+    always begin
+        #5 clk = ~clk;
+    end
+
+endmodule
+
+//---------//
+// Counter //
+//---------//
+
 module Counter(
-input clk,
-input reset,
-input enable,
-output reg [7:0] count
-);
+    input clk,
+    input reset,
+    input enable,
+    output reg [7:0] count
+    );
 
     initial begin
         count = 0;
@@ -21,10 +43,6 @@ output reg [7:0] count
     end
 
 endmodule
-
-//---------//
-// Counter //
-//---------//
 
 /*module Counter
 (
