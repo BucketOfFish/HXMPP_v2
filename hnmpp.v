@@ -105,6 +105,12 @@ module HNMPP(
     reg [ROWINDEXBITS_HNM-1:0] fillRow = 0;
     reg [3:0] fillDelay = 0; // wait a safe amount of time after testing before resuming read and write
 
+    //-----------------//
+    // STUPID BULLSHIT //
+    //-----------------//
+
+    reg [QUEUESIZEBITS-1:0] queueN = 0; // can't do loop variable declaration
+
     //---------//
     // TESTING //
     //---------//
@@ -274,13 +280,13 @@ module HNMPP(
             if (nInWriteQueue > 0) begin
 
                 if (waitTimeWriteQueue[0] > 0) begin // nothing to be written yet
-                    for (reg [QUEUESIZEBITS-1:0] queueN = 0; queueN < QUEUESIZE; queueN = queueN + 1) begin
+                    for (queueN = 0; queueN < QUEUESIZE; queueN = queueN + 1) begin
                         waitTimeWriteQueue[queueN] <= waitTimeWriteQueue[queueN] - 1; // reduce wait times
                     end
                 end
 
                 else begin // write the first item
-                    for (reg [QUEUESIZEBITS-1:0] queueN = 0; queueN < QUEUESIZE - 1; queueN = queueN + 1) begin
+                    for (queueN = 0; queueN < QUEUESIZE - 1; queueN = queueN + 1) begin
                         waitTimeWriteQueue[queueN] <= waitTimeWriteQueue[queueN+1] - 1; // pop an item
                         queueWriteRow[queueN] <= queueWriteRow[queueN+1]; // pop an item
                         queueNewHitsRow[queueN] <= queueNewHitsRow[queueN+1]; // pop an item
@@ -299,13 +305,13 @@ module HNMPP(
             if (nInReadQueue > 0) begin
 
                 if (waitTimeReadQueue[0] > 0) begin // nothing to be read yet
-                    for (reg [QUEUESIZEBITS-1:0] queueN = 0; queueN < QUEUESIZE; queueN = queueN + 1) begin
+                    for (queueN = 0; queueN < QUEUESIZE; queueN = queueN + 1) begin
                         waitTimeReadQueue[queueN] <= waitTimeReadQueue[queueN] - 1; // reduce wait times
                     end
                 end
 
                 else begin // read the first item
-                    for (reg [QUEUESIZEBITS-1:0] queueN = 0; queueN < QUEUESIZE - 1; queueN = queueN + 1) begin
+                    for (queueN = 0; queueN < QUEUESIZE - 1; queueN = queueN + 1) begin
                         waitTimeReadQueue[queueN] <= waitTimeReadQueue[queueN+1] - 1; // pop an item
                         queueReadRow[queueN] <= queueReadRow[queueN+1]; // pop an item
                         queueReadCol[queueN] <= queueReadCol[queueN+1]; // pop an item
@@ -332,7 +338,7 @@ module HNMPP(
 
                 inQueue = 0;
 
-                for (reg [QUEUESIZEBITS-1:0] queueN = 0; queueN < QUEUESIZE; queueN = queueN + 1) begin
+                for (queueN = 0; queueN < QUEUESIZE; queueN = queueN + 1) begin
                     if (queueWriteRow[queueN] == SSID_writeRow && waitTimeWriteQueue[queueN] > 0) begin
                         // if the row was already set to write on the clock edge, don't try to add to that row
                         queueNewHitsRow[queueN - writeQueueShifted] <= queueNewHitsRow[queueN] | (1'b1 << SSID_writeCol);

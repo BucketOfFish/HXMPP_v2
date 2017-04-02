@@ -82,9 +82,12 @@ module Testbench_HNM;
     end
 
     initial begin
-        //$monitor ("\t%b\t%b", rowPassed, rowReadOutput[12:0]);
+        $monitor ("\t%b\t%b", rowPassed, rowReadOutput[12:0]);
         //$monitor ("%g\t%b\t%b", $time, SSID_passed[6:0], HNM_readOutput);
     end
+
+    wire [12:0] debugRowReadOutput;
+    assign  debugRowReadOutput = rowReadOutput[12:0]; // on board, check rowPassed and debugRowReadOutput
 
     always @(posedge clk) begin
 
