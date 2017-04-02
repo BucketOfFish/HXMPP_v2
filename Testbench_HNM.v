@@ -64,10 +64,16 @@ module Testbench_HNM;
     reg [ROWINDEXBITS_HNM-1:0] testingRow = 0; // row number for reading and writing
     reg [SSIDBITS-1:0] testingSSID = 0; // SSID for reading and writing
 
-    reg [ROWINDEXBITS_HNM-1:0] testingSSID_row[45:0] = {8, 8, 8, 8, 8, 8, 8, 8, 2, 9, 4, 12, 3, 3, 1, 4, 4, 4, 4, 4, 4, 4, 4};
-    reg [COLINDEXBITS_HNM-1:0] testingSSID_col[45:0] = {0, 3, 7, 8, 8, 8, 5, 11, 11, 7, 1, 7, 5, 6, 8, 12, 4, 4, 7, 2, 1, 8, 6};
+    reg [ROWINDEXBITS_HNM-1:0] testingSSID_row[22:0] = {8, 8, 8, 8, 8, 8, 8, 8, 2, 9, 4, 12, 3, 3, 1, 4, 4, 4, 4, 4, 4, 4, 4};
+    reg [COLINDEXBITS_HNM-1:0] testingSSID_col[22:0] = {0, 3, 7, 8, 8, 8, 5, 11, 11, 7, 1, 7, 5, 6, 8, 12, 4, 4, 7, 2, 1, 8, 6};
     //8 8 8 8 8 8 8  8  2 9 4 12 3 3 1  4 4 4 4 4 4 4 4
     //0 3 7 8 8 8 5 11 11 7 1  7 5 6 8 12 4 4 7 2 1 8 6
+
+    integer currentTime = 0;
+
+    always @(posedge clk) begin
+        currentTime <= currentTime + 1;
+    end
 
     always @(testNumber) begin // whenever the test number changes
         if (currentTest == 2'b00) begin // if not already testing
@@ -76,22 +82,29 @@ module Testbench_HNM;
     end
 
     initial begin
-
-        //$monitor ("%g\t%b\t%b", $time, rowPassed, rowReadOutput[6:0]);
-        //$monitor ("%g\t%b\t%b", $time, rowPassed, rowReadOutput[12:0]);
+        //$monitor ("\t%b\t%b", rowPassed, rowReadOutput[12:0]);
         //$monitor ("%g\t%b\t%b", $time, SSID_passed[6:0], HNM_readOutput);
+    end
 
-        testNumber = 3'b001; // print BRAM
-        $display ("Printing initial BRAM");
-        #5 testNumber = 3'b000;
+    always @(posedge clk) begin
 
-        #2000 reset = 1; // reset
-        $display ("Resetting BRAM");
-        #5 reset = 0;
+        if (currentTime == 0) begin
+            testNumber = 3'b001; // print BRAM
+            $display ("Printing initial BRAM");
+        end
+        if (currentTime == 1) testNumber = 3'b000;
 
-        #2000 testNumber = 3'b001; // print BRAM again
-        $display ("Printing second BRAM");
-        #5 testNumber = 3'b000;
+        if (currentTime == 400) begin
+            reset = 1; // reset
+            $display ("Resetting BRAM");
+        end
+        if (currentTime == 401) reset = 0;
+
+        if (currentTime == 800) begin
+            testNumber = 3'b001; // print BRAM again
+            $display ("Printing second BRAM");
+        end
+        if (currentTime == 4015) testNumber = 3'b000;
 
         //#2000 testNumber = 3'b011; // store row numbers
         //$display ("Storing row numbers");
@@ -101,17 +114,21 @@ module Testbench_HNM;
         //$display ("Storing alternating bits");
         //#5 testNumber = 3'b000;
 
-        #2000 testNumber = 3'b110; // store SSIDs from list
-        $display ("Storing SSIDs from list");
-        #5 testNumber = 3'b000;
+        if (currentTime == 1000) begin
+            testNumber = 3'b110; // store SSIDs from list
+            $display ("Storing SSIDs from list");
+        end
+        if (currentTime == 6020) testNumber = 3'b000;
 
         //#2000 testNumber = 3'b101; // store checkerboard pattern, one row at a time
         //$display ("Storing checkerboard pattern");
         //#5 testNumber = 3'b000;
 
-        #2000 testNumber = 3'b001; // print BRAM again
-        $display ("Printing final BRAM");
-        #5 testNumber = 3'b000;
+        if (currentTime == 1200) begin
+            testNumber = 3'b001; // print BRAM again
+            $display ("Printing final BRAM");
+        end
+        if (currentTime == 8025) testNumber = 3'b000;
 
         //#2000 testNumber = 3'b100; // print SSIDs
         //$display ("Printing SSIDs");
@@ -188,7 +205,7 @@ module Testbench_HNM;
             writeSSID <= 1'b1; // write enabled
             SSID_toWrite <= {testingSSID_row[testingSSID], testingSSID_col[testingSSID]};
             testingSSID <= testingSSID + 1; // increment SSID
-            if (testingSSID >= 45-1) begin // if the SSID we just read is the last one
+            if (testingSSID >= 22) begin // if the SSID we just read is the last one
                 testingSSID <= 0;
                 testNumber <= 3'b000; // stop testing
                 currentTest <= 0;

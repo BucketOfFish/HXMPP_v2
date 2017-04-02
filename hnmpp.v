@@ -273,7 +273,6 @@ module HNMPP(
 
             if (nInWriteQueue > 0) begin
 
-$display("%d\t%d\t%b\t%b", nInWriteQueue, waitTimeWriteQueue[0], queueWriteRow[0][6:0], queueNewHitsRow[0][12:0]);
                 if (waitTimeWriteQueue[0] > 0) begin // nothing to be written yet
                     for (reg [QUEUESIZEBITS-1:0] queueN = 0; queueN < QUEUESIZE; queueN = queueN + 1) begin
                         waitTimeWriteQueue[queueN] <= waitTimeWriteQueue[queueN] - 1; // reduce wait times
@@ -290,7 +289,6 @@ $display("%d\t%d\t%b\t%b", nInWriteQueue, waitTimeWriteQueue[0], queueWriteRow[0
                     writeToBRAM <= 1'b1;
                     rowToWrite <= queueWriteRow[0];
                     dataToWrite <= dataRead | queueNewHitsRow[0]; // existing hits on row plus new hits
-$display("Gonna write!\t%b\t%b", dataRead[12:0], queueNewHitsRow[0][12:0]);
                 end
             end
 
@@ -329,14 +327,15 @@ $display("Gonna write!\t%b\t%b", dataRead[12:0], queueNewHitsRow[0][12:0]);
             // ADD TO WRITE QUEUE //
             //--------------------//
 
+            // this part of the code is blocking, but it shouldn't matter
             if (write == 1'b1) begin // writing requires a row read request first - see below
 
                 inQueue = 0;
 
-                for (reg [QUEUESIZEBITS-1:0] queueN = 0; queueN < QUEUESIZE - 1; queueN = queueN + 1) begin
+                for (reg [QUEUESIZEBITS-1:0] queueN = 0; queueN < QUEUESIZE; queueN = queueN + 1) begin
                     if (queueWriteRow[queueN] == SSID_writeRow && waitTimeWriteQueue[queueN] > 0) begin
                         // if the row was already set to write on the clock edge, don't try to add to that row
-                        queueNewHitsRow[queueN] <= queueNewHitsRow[queueN] | (1'b1 << SSID_writeCol);
+                        queueNewHitsRow[queueN - writeQueueShifted] <= queueNewHitsRow[queueN] | (1'b1 << SSID_writeCol);
                         inQueue = 1;
                     end
                 end
