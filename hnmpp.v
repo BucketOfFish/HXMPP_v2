@@ -43,18 +43,21 @@ module HNMPP(
     reg [ROWINDEXBITS_HNM-1:0] rowToRead;
     wire [NCOLS_HNM-1:0] dataRead;
 
+    wire [NCOLS_HNM-1:0] dummyRead;
+    reg [NCOLS_HNM-1:0] dummyWrite = 0;
+
     hnmpp HNM_BRAM (
         .clka(clk),
         .ena(1'b1),
         .wea(writeToBRAM),
         .addra(rowToWrite),
         .dina(dataToWrite),
-        .douta(),
+        .douta(dummyRead),
         .clkb(clk),
         .enb(1'b1),
         .web(1'b0),
         .addrb(rowToRead),
-        .dinb(),
+        .dinb(dummyWrite),
         .doutb(dataRead)
         );
 
@@ -282,8 +285,7 @@ module HNMPP(
                 if (waitTimeWriteQueue[0] > 0) begin // nothing to be written yet
                     for (queueN = 0; queueN < QUEUESIZE; queueN = queueN + 1) begin
                         waitTimeWriteQueue[queueN] <= waitTimeWriteQueue[queueN] - 1; // reduce wait times
-                    end
-                end
+                    end end
 
                 else begin // write the first item
                     for (queueN = 0; queueN < QUEUESIZE - 1; queueN = queueN + 1) begin

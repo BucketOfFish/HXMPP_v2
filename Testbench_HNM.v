@@ -4,15 +4,24 @@
 // Testbench for HNM //
 //-------------------//
 
-module Testbench_HNM;
-
-    `include "MyParameters.vh"
+module Testbench_HNM(
+    input clk_p,
+    input clk_n
+    );
 
     wire clk;
-    
-    Clock clock(
-        .clk(clk)
+    // derive signal from external differential clock: ext_clk_[p/n]
+    IBUFDS # (
+        .DIFF_TERM("FALSE"), // differential termination
+        .IBUF_LOW_PWR("TRUE"), // low power vs. performance setting for referenced I/O standards
+        .IOSTANDARD("DEFAULT") // specify the input I/O standard
+    ) IBUFDS_ext_clk_inst (
+        .O(clk), // buffer output
+        .I(clk_p), // diff_p buffer input (connect directly to top-level port)
+        .IB(clk_n) // diff_n buffer input (connect directly to top-level port)
     );
+
+    `include "MyParameters.vh"
 
     //-----//
     // DUT //
@@ -30,16 +39,18 @@ module Testbench_HNM;
     wire [SSIDBITS-1:0] SSID_passed;
     wire HNM_readOutput;
 
+    wire readReady, writeReady, busy;
+
     HNMPP HNM (
         .clk(clk),
         .reset(reset),
-        .writeReady(),
+        .writeReady(readReady),
         .SSID_write(SSID_toWrite),
         .write(writeSSID),
         .writeRow(writeRow),
         .rowWrite(rowToWrite),
         .dataWrite(dataToWrite),
-        .readReady(),
+        .readReady(writeReady),
         .SSID_read(SSID_toRead),
         .read(readSSID),
         .rowRead(rowToRead),
@@ -49,8 +60,25 @@ module Testbench_HNM;
         .HNM_readOutput(HNM_readOutput),
         .rowPassed(rowPassed),
         .rowReadOutput(rowReadOutput),
-        .busy()
+        .busy(busy)
     );
+    
+    //---------------//
+    // DEBUG SIGNALS //
+    //---------------//
+
+    wire [12:0] partialRowReadOutput;
+    assign partialRowReadOutput = rowReadOutput[12:0];
+    (*mark_debug="TRUE"*)
+    reg [12:0] debugRowReadOutput;
+    (*mark_debug="TRUE"*)
+    reg [ROWINDEXBITS_HNM-1:0] debugRowPassed;
+
+    // debug signals
+    always @(posedge clk) begin
+        debugRowReadOutput <= partialRowReadOutput;
+        debugRowPassed <= rowPassed;
+    end
     
     //------------------//
     // VALIDATION TESTS //
@@ -75,27 +103,26 @@ module Testbench_HNM;
         currentTime <= currentTime + 1;
     end
 
-    always @(testNumber) begin // whenever the test number changes
-        if (currentTest == 2'b00) begin // if not already testing
-            currentTest <= testNumber; // start testing
-        end
-    end
-
     initial begin
         $monitor ("\t%b\t%b", rowPassed, rowReadOutput[12:0]);
         //$monitor ("%g\t%b\t%b", $time, SSID_passed[6:0], HNM_readOutput);
     end
 
-    wire [12:0] debugRowReadOutput;
-    assign  debugRowReadOutput = rowReadOutput[12:0]; // on board, check rowPassed and debugRowReadOutput
-
     always @(posedge clk) begin
 
+        if (currentTest == 2'b00) begin // if not already testing
+            currentTest <= testNumber; // start testing
+        end
+
+        //--------------//
+        // SET UP TESTS //
+        //--------------//
+
         if (currentTime == 0) begin
-            testNumber = 3'b001; // print BRAM
+            testNumber <= 3'b001; // print BRAM
             $display ("Printing initial BRAM");
         end
-        if (currentTime == 1) testNumber = 3'b000;
+        if (currentTime == 1) testNumber <= 3'b000;
 
         if (currentTime == 400) begin
             reset = 1; // reset
@@ -104,10 +131,10 @@ module Testbench_HNM;
         if (currentTime == 401) reset = 0;
 
         if (currentTime == 800) begin
-            testNumber = 3'b001; // print BRAM again
+            testNumber <= 3'b001; // print BRAM again
             $display ("Printing second BRAM");
         end
-        if (currentTime == 4015) testNumber = 3'b000;
+        if (currentTime == 4015) testNumber <= 3'b000;
 
         //#2000 testNumber = 3'b011; // store row numbers
         //$display ("Storing row numbers");
@@ -118,27 +145,28 @@ module Testbench_HNM;
         //#5 testNumber = 3'b000;
 
         if (currentTime == 1000) begin
-            testNumber = 3'b110; // store SSIDs from list
+            testNumber <= 3'b110; // store SSIDs from list
             $display ("Storing SSIDs from list");
         end
-        if (currentTime == 6020) testNumber = 3'b000;
+        if (currentTime == 6020) testNumber <= 3'b000;
 
         //#2000 testNumber = 3'b101; // store checkerboard pattern, one row at a time
         //$display ("Storing checkerboard pattern");
         //#5 testNumber = 3'b000;
 
         if (currentTime == 1200) begin
-            testNumber = 3'b001; // print BRAM again
+            testNumber <= 3'b001; // print BRAM again
             $display ("Printing final BRAM");
         end
-        if (currentTime == 8025) testNumber = 3'b000;
+        if (currentTime == 8025) testNumber <= 3'b000;
 
         //#2000 testNumber = 3'b100; // print SSIDs
         //$display ("Printing SSIDs");
         //#5 testNumber = 3'b000;
-    end
 
-    always @(posedge clk) begin
+        //------------------//
+        // CONTENT OF TESTS //
+        //------------------//
 
         readSSID <= 0;
         readRow <= 0;
