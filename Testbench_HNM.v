@@ -4,7 +4,7 @@
 // Testbench for HNM //
 //-------------------//
 
-module Testbench_HNM(
+/*module Testbench_HNM(
     input clk_p,
     input clk_n
     );
@@ -19,6 +19,13 @@ module Testbench_HNM(
         .O(clk), // buffer output
         .I(clk_p), // diff_p buffer input (connect directly to top-level port)
         .IB(clk_n) // diff_n buffer input (connect directly to top-level port)
+    );*/
+
+module Testbench_HNM;
+
+    wire clk;
+    Clock clock(
+        .clk(clk)
     );
 
     `include "MyParameters.vh"
@@ -99,16 +106,15 @@ module Testbench_HNM(
 
     integer currentTime = 0;
 
-    always @(posedge clk) begin
-        currentTime <= currentTime + 1;
-    end
-
     initial begin
-        $monitor ("\t%b\t%b", rowPassed, rowReadOutput[12:0]);
+        $monitor ("\t%d\t%b", rowPassed, rowReadOutput[12:0]);
+        //$monitor ("%d\t%d\t%b", currentTime, rowPassed, rowReadOutput[12:0]);
         //$monitor ("%g\t%b\t%b", $time, SSID_passed[6:0], HNM_readOutput);
     end
 
     always @(posedge clk) begin
+
+        currentTime <= currentTime + 1;
 
         if (currentTest == 2'b00) begin // if not already testing
             currentTest <= testNumber; // start testing
@@ -125,44 +131,48 @@ module Testbench_HNM(
         if (currentTime == 1) testNumber <= 3'b000;
 
         if (currentTime == 400) begin
-            reset = 1; // reset
+            reset <= 1; // reset
             $display ("Resetting BRAM");
         end
-        if (currentTime == 401) reset = 0;
+        if (currentTime == 401) reset <= 0;
 
         if (currentTime == 800) begin
             testNumber <= 3'b001; // print BRAM again
             $display ("Printing second BRAM");
         end
-        if (currentTime == 4015) testNumber <= 3'b000;
+        if (currentTime == 801) testNumber <= 3'b000;
 
-        //#2000 testNumber = 3'b011; // store row numbers
+        //#2000 testNumber <= 3'b011; // store row numbers
         //$display ("Storing row numbers");
-        //#5 testNumber = 3'b000;
+        //#5 testNumber <= 3'b000;
 
-        //#2000 testNumber = 3'b010; // store alternating 0's and 1's, one at a time
+        //#2000 testNumber <= 3'b010; // store alternating 0's and 1's, one at a time
         //$display ("Storing alternating bits");
-        //#5 testNumber = 3'b000;
+        //#5 testNumber <= 3'b000;
 
         if (currentTime == 1000) begin
             testNumber <= 3'b110; // store SSIDs from list
             $display ("Storing SSIDs from list");
         end
-        if (currentTime == 6020) testNumber <= 3'b000;
+        if (currentTime == 1001) testNumber <= 3'b000;
 
-        //#2000 testNumber = 3'b101; // store checkerboard pattern, one row at a time
+        //#2000 testNumber <= 3'b101; // store checkerboard pattern, one row at a time
         //$display ("Storing checkerboard pattern");
-        //#5 testNumber = 3'b000;
+        //#5 testNumber <= 3'b000;
 
         if (currentTime == 1200) begin
             testNumber <= 3'b001; // print BRAM again
             $display ("Printing final BRAM");
         end
-        if (currentTime == 8025) testNumber <= 3'b000;
+        if (currentTime == 1201) testNumber <= 3'b000;
 
-        //#2000 testNumber = 3'b100; // print SSIDs
+        if (currentTime > 1400) begin
+            currentTime <= 0;
+        end
+
+        //#2000 testNumber <= 3'b100; // print SSIDs
         //$display ("Printing SSIDs");
-        //#5 testNumber = 3'b000;
+        //#5 testNumber <= 3'b000;
 
         //------------------//
         // CONTENT OF TESTS //

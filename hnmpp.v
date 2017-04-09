@@ -118,10 +118,31 @@ module HNMPP(
     // TESTING //
     //---------//
 
-    /*initial begin
+    (*mark_debug="TRUE"*)
+    reg [ROWINDEXBITS_HNM-1:0] debugQueueWriteRow [QUEUESIZE-1:0];
+    (*mark_debug="TRUE"*)
+    reg [12:0] debugQueueNewHitsRow [QUEUESIZE-1:0];
+    (*mark_debug="TRUE"*)
+    reg [ROWINDEXBITS_HNM-1:0] debugRowToRead;
+    (*mark_debug="TRUE"*)
+    reg [QUEUESIZEBITS-1:0] debugNInReadQueue = 0;
+
+    genvar i;
+    generate
+        for (i = 0; i < QUEUESIZE; i = i + 1) begin
+            always @(posedge clk) begin
+                debugQueueWriteRow[i] <= queueWriteRow[i];
+                debugQueueNewHitsRow[i] <= queueNewHitsRow[i][12:0];
+                debugRowToRead <= rowToRead;
+                debugNInReadQueue <= nInReadQueue;
+            end
+        end
+    endgenerate
+
+    initial begin
         //$monitor ("%g\t%b\t%b\t%b", $time, writeToBRAM, rowToWrite, dataToWrite[6:0]);
-        $monitor ("%g\t%b\t%b", $time, rowToRead, dataRead[6:0]);
-    end*/
+        $monitor ("%b\t%b\t%b\t%b", debugQueueWriteRow[0], debugQueueNewHitsRow[0], debugRowToRead, debugNInReadQueue);
+    end
 
     /*initial begin
         test = 2'b01;
@@ -232,8 +253,8 @@ module HNMPP(
             busy <= 1'b1; // flag busy
             writeToBRAM <= 1'b0; // not currently writing
 
-            nInReadQueue = 0;
-            nInWriteQueue = 0;
+            nInReadQueue <= 0;
+            nInWriteQueue <= 0;
 
             resetStatus <= 1'b1; // start resetting BRAM
             resetRow <= 0; // start with the first row
@@ -285,7 +306,8 @@ module HNMPP(
                 if (waitTimeWriteQueue[0] > 0) begin // nothing to be written yet
                     for (queueN = 0; queueN < QUEUESIZE; queueN = queueN + 1) begin
                         waitTimeWriteQueue[queueN] <= waitTimeWriteQueue[queueN] - 1; // reduce wait times
-                    end end
+                    end
+                end
 
                 else begin // write the first item
                     for (queueN = 0; queueN < QUEUESIZE - 1; queueN = queueN + 1) begin
@@ -335,7 +357,7 @@ module HNMPP(
             // ADD TO WRITE QUEUE //
             //--------------------//
 
-            // this part of the code is blocking, but it shouldn't matter
+            /*// this part of the code is blocking, but it shouldn't matter
             if (write == 1'b1) begin // writing requires a row read request first - see below
 
                 inQueue = 0;
@@ -353,6 +375,27 @@ module HNMPP(
                     queueNewHitsRow[nInWriteQueueAfterShift] <= 1'b1 << SSID_writeCol; // shift by col number
                     waitTimeWriteQueue[nInWriteQueueAfterShift] <= BRAM_READDELAY;
                     nInWriteQueue <= nInWriteQueueAfterShift + 1; // increase the number of items in queue
+                end
+            end*/
+
+            if (write == 1'b1) begin // writing requires a row read request first - see below
+
+                // write a new item into the queue if the row is new
+                queueWriteRow[nInWriteQueueAfterShift] <= SSID_writeRow; // place in queue until read completes
+                queueNewHitsRow[nInWriteQueueAfterShift] <= 1'b1 << SSID_writeCol; // shift by col number
+                waitTimeWriteQueue[nInWriteQueueAfterShift] <= BRAM_READDELAY;
+                nInWriteQueue <= nInWriteQueueAfterShift + 1; // increase the number of items in queue
+
+                for (queueN = 0; queueN < QUEUESIZE; queueN = queueN + 1) begin
+                    // if the row was already set to write on the clock edge, don't try to add to that row
+                    if (queueWriteRow[queueN] == SSID_writeRow && waitTimeWriteQueue[queueN] > 0) begin
+                        queueNewHitsRow[queueN - writeQueueShifted] <= queueNewHitsRow[queueN] | (1'b1 << SSID_writeCol);
+                        // undo the new item in queue
+                        queueWriteRow[nInWriteQueueAfterShift] <= queueWriteRow[nInWriteQueueAfterShift];
+                        queueNewHitsRow[nInWriteQueueAfterShift] <= queueNewHitsRow[nInWriteQueueAfterShift];
+                        waitTimeWriteQueue[nInWriteQueueAfterShift] <= waitTimeWriteQueue[nInWriteQueueAfterShift];
+                        nInWriteQueue <= nInWriteQueueAfterShift;
+                    end
                 end
             end
 
