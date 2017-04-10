@@ -141,7 +141,7 @@ module HNMPP(
 
     initial begin
         //$monitor ("%g\t%b\t%b\t%b", $time, writeToBRAM, rowToWrite, dataToWrite[6:0]);
-        $monitor ("%b\t%b\t%b\t%b", debugQueueWriteRow[0], debugQueueNewHitsRow[0], debugRowToRead, debugNInReadQueue);
+        //$monitor ("%b\t%b\t%b\t%b", debugQueueWriteRow[0], debugQueueNewHitsRow[0], debugRowToRead, debugNInReadQueue);
     end
 
     /*initial begin
@@ -386,7 +386,7 @@ module HNMPP(
                 waitTimeWriteQueue[nInWriteQueueAfterShift] <= BRAM_READDELAY;
                 nInWriteQueue <= nInWriteQueueAfterShift + 1; // increase the number of items in queue
 
-                for (queueN = 0; queueN < QUEUESIZE; queueN = queueN + 1) begin
+                for (queueN = 0; queueN < nInWriteQueue; queueN = queueN + 1) begin
                     // if the row was already set to write on the clock edge, don't try to add to that row
                     if (queueWriteRow[queueN] == SSID_writeRow && waitTimeWriteQueue[queueN] > 0) begin
                         queueNewHitsRow[queueN - writeQueueShifted] <= queueNewHitsRow[queueN] | (1'b1 << SSID_writeCol);

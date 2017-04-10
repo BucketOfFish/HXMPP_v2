@@ -6,8 +6,8 @@ localparam NCOLS_HNM = 512;
 localparam ROWINDEXBITS_HNM = 7; //$clog2(NROWS_HNM);
 localparam COLINDEXBITS_HNM = 9; //$clog2(NCOLS_HNM);
 
-localparam MAXHITN = 5; // at most 5 hits
-localparam MAXHITNBITS = 2;
+localparam MAXHITN = 4; // at most 4 hits
+localparam MAXHITNBITS = 3;
 
 localparam NROWS_HIM = 2048; // can store this many hits per event
 localparam HITINFOBITS = 32; // 32 bits of info about each hit
