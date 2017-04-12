@@ -4,7 +4,7 @@
 // Testbench for HCM //
 //-------------------//
 
-module Testbench_HCM(
+/*module Testbench_HCM(
     input clk_p,
     input clk_n
     );
@@ -19,14 +19,14 @@ module Testbench_HCM(
         .O(clk), // buffer output
         .I(clk_p), // diff_p buffer input (connect directly to top-level port)
         .IB(clk_n) // diff_n buffer input (connect directly to top-level port)
-    );
+    );*/
 
-/*module Testbench_HCM;
+module Testbench_HCM;
 
     wire clk;
     Clock clock(
         .clk(clk)
-    );*/
+    );
 
     `include "MyParameters.vh"
 
@@ -41,6 +41,7 @@ module Testbench_HCM(
     reg [ROWINDEXBITS_HCM-1:0] rowToRead, rowToWrite;
     wire [ROWINDEXBITS_HCM-1:0] rowPassed;
     wire [NCOLS_HCM-1:0] rowReadOutput;
+    wire [MAXHITNBITS-1:0] nHits;
 
     wire readReady, writeReady, busy;
 
@@ -56,6 +57,7 @@ module Testbench_HCM(
         .reset(reset),
         .rowPassed(rowPassed),
         .rowReadOutput(rowReadOutput),
+        .nHits(nHits),
         .busy(busy)
     );
     
@@ -91,7 +93,8 @@ module Testbench_HCM(
     integer currentTime = 0;
 
     initial begin
-        $monitor ("%d\t%b", debugRowPassed, debugRowReadOutput[12:0]);
+        $monitor ("%d\t%b\t%d", rowPassed, rowReadOutput[12:0], nHits);
+        //$monitor ("%d\t%b\t%d", debugRowPassed, debugRowReadOutput[12:0], nHits);
         //$monitor ("%d\t%d\t%b", currentTime, rowPassed, rowReadOutput[12:0]);
         //$monitor ("%g\t%b\t%b", $time, SSID_passed[6:0], HCM_readOutput);
     end

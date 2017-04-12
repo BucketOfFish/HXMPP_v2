@@ -12,6 +12,7 @@ module HCMPP(
     output reg readReady,
     output reg [ROWINDEXBITS_HCM-1:0] rowPassed,
     output reg [NCOLS_HCM-1:0] rowReadOutput,
+    output reg [MAXHITNBITS-1:0] nHits,
     output reg busy
     );
 
@@ -163,9 +164,11 @@ module HCMPP(
                     nInReadQueue <= nInReadQueue - 1; // reduce number of items in queue
                     rowPassed <= queueReadRow[0];
                     rowReadOutput <= dataRead;
+                    nHits <= dataRead[MAXHITNBITS-1:0];
 
                     if (collisionDetected[0]) begin
                         rowReadOutput <= dataPreviouslyWritten[0];
+                        nHits <= dataPreviouslyWritten[0][MAXHITNBITS-1:0];
                         //$display("Non-collision result for row %d is %b", queueReadRow[0], dataRead);
                         //$display("Data previously written for row %d was %b", queueReadRow[0], dataPreviouslyWritten[0]);
                     end
