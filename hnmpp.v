@@ -92,6 +92,13 @@ module HNMPP(
     assign readQueueShifted = (nInReadQueue > 0) && (waitTimeReadQueue[0] == 0);
     assign nInReadQueueAfterShift = nInReadQueue - readQueueShifted;
 
+    //---------------------//
+    // COLLISION AVOIDANCE //
+    //---------------------//
+
+    reg [QUEUESIZE-1:0] collisionDetected = 0;
+    reg [NCOLS_HCM-1:0] dataPreviouslyWritten [QUEUESIZE-1:0];
+
     //-----------//
     // RESETTING //
     //-----------//
@@ -255,6 +262,7 @@ module HNMPP(
 
             nInReadQueue <= 0;
             nInWriteQueue <= 0;
+            collisionDetected <= 0;
 
             resetStatus <= 1'b1; // start resetting BRAM
             resetRow <= 0; // start with the first row
@@ -297,6 +305,45 @@ module HNMPP(
 
             writeToBRAM <= 1'b0; // don't write
 
+            //----------------------------------//
+            // MOVE QUEUE AND RETURN READ VALUE //
+            //----------------------------------//
+
+            if (nInReadQueue > 0) begin
+
+                if (waitTimeReadQueue[0] > 0) begin // nothing to be read yet
+                    for (queueN = 0; queueN < QUEUESIZE; queueN = queueN + 1) begin
+                        waitTimeReadQueue[queueN] <= waitTimeReadQueue[queueN] - 1; // reduce wait times
+                    end
+                end
+
+                else begin // read the first item
+                    for (queueN = 0; queueN < QUEUESIZE - 1; queueN = queueN + 1) begin
+                        waitTimeReadQueue[queueN] <= waitTimeReadQueue[queueN+1] - 1; // pop an item
+                        queueReadRow[queueN] <= queueReadRow[queueN+1]; // pop an item
+                        queueReadCol[queueN] <= queueReadCol[queueN+1]; // pop an item
+                        collisionDetected[queueN] <= collisionDetected[queueN+1];
+                        queueReadWholeRow[queueN] <= queueReadWholeRow[queueN+1]; // pop an item
+                        dataPreviouslyWritten[queueN] <= dataPreviouslyWritten[queueN+1];
+                    end
+                    nInReadQueue <= nInReadQueue - 1; // reduce number of items in queue
+                    if (queueReadWholeRow[0]) begin 
+                        rowPassed <= queueReadRow[0];
+                        rowReadOutput <= dataRead;
+                        if (collisionDetected[0]) begin
+                            rowReadOutput <= dataPreviouslyWritten[0];
+                        end
+                    end
+                    else begin
+                        SSID_passed <= {queueReadRow[0], queueReadCol[0]};
+                        HNM_readOutput <= dataRead[queueReadCol[0]];
+                        if (collisionDetected[0]) begin
+                            HNM_readOutput <= dataPreviouslyWritten[0][queueReadCol[0]];
+                        end
+                    end
+                end
+            end
+
             //------------------------------//
             // MOVE QUEUE AND WRITE TO BRAM //
             //------------------------------//
@@ -319,36 +366,11 @@ module HNMPP(
                     writeToBRAM <= 1'b1;
                     rowToWrite <= queueWriteRow[0];
                     dataToWrite <= dataRead | queueNewHitsRow[0]; // existing hits on row plus new hits
-                end
-            end
 
-            //----------------------------------//
-            // MOVE QUEUE AND RETURN READ VALUE //
-            //----------------------------------//
-
-            if (nInReadQueue > 0) begin
-
-                if (waitTimeReadQueue[0] > 0) begin // nothing to be read yet
-                    for (queueN = 0; queueN < QUEUESIZE; queueN = queueN + 1) begin
-                        waitTimeReadQueue[queueN] <= waitTimeReadQueue[queueN] - 1; // reduce wait times
-                    end
-                end
-
-                else begin // read the first item
-                    for (queueN = 0; queueN < QUEUESIZE - 1; queueN = queueN + 1) begin
-                        waitTimeReadQueue[queueN] <= waitTimeReadQueue[queueN+1] - 1; // pop an item
-                        queueReadRow[queueN] <= queueReadRow[queueN+1]; // pop an item
-                        queueReadCol[queueN] <= queueReadCol[queueN+1]; // pop an item
-                        queueReadWholeRow[queueN] <= queueReadWholeRow[queueN+1]; // pop an item
-                    end
-                    nInReadQueue <= nInReadQueue - 1; // reduce number of items in queue
-                    if (queueReadWholeRow[0]) begin 
-                        rowPassed <= queueReadRow[0];
-                        rowReadOutput <= dataRead;
-                    end
-                    else begin
-                        SSID_passed <= {queueReadRow[0], queueReadCol[0]};
-                        HNM_readOutput <= dataRead[queueReadCol[0]];
+                    dataPreviouslyWritten[nInReadQueueAfterShift] <= dataRead | queueNewHitsRow[0]; // collision
+                    if (collisionDetected[0]) begin
+                        dataToWrite <= dataPreviouslyWritten[0] | queueNewHitsRow[0];
+                        dataPreviouslyWritten[nInReadQueueAfterShift] <= dataPreviouslyWritten[0] | queueNewHitsRow[0]; // in case of collision
                     end
                 end
             end
@@ -432,6 +454,12 @@ module HNMPP(
                 queueReadWholeRow[nInReadQueueAfterShift] <= 1; // mark as a whole-row read
                 waitTimeReadQueue[nInReadQueueAfterShift] <= BRAM_READDELAY; // set the wait time
                 nInReadQueue <= nInReadQueueAfterShift + 1; // increase the number of items in queue
+
+                collisionDetected[nInReadQueueAfterShift] <= 0; // no collision
+                if ((waitTimeWriteQueue[0] == 0) && (SSID_writeRow == queueWriteRow[0])) begin // if we're going to write a row, and it's the same as the row we're reading (a collision)
+                    rowToRead <= SSID_writeRow + 1; // make it a different row
+                    collisionDetected[nInReadQueueAfterShift] <= 1;
+                end
             end
 
             else if (readRow == 1'b1) begin // read a whole row
@@ -440,6 +468,12 @@ module HNMPP(
                 queueReadWholeRow[nInReadQueueAfterShift] <= 1; // mark as a whole-row read
                 waitTimeReadQueue[nInReadQueueAfterShift] <= BRAM_READDELAY; // set the wait time
                 nInReadQueue <= nInReadQueueAfterShift + 1; // increase the number of items in queue
+
+                collisionDetected[nInReadQueueAfterShift] <= 0; // no collision
+                if ((waitTimeWriteQueue[0] == 0) && (rowRead == queueWriteRow[0])) begin // if we're going to write a row, and it's the same as the row we're reading (a collision)
+                    rowToRead <= SSID_writeRow + 1; // make it a different row
+                    collisionDetected[nInReadQueueAfterShift] <= 1;
+                end
             end
 
             //-------------------//

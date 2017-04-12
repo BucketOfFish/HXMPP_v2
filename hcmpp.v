@@ -75,13 +75,12 @@ module HCMPP(
     assign readQueueShifted = (nInReadQueue > 0) && (waitTimeReadQueue[0] == 0);
     assign nInReadQueueAfterShift = nInReadQueue - readQueueShifted;
 
-    //-----------//
-    // COLLISION //
-    //-----------//
+    //---------------------//
+    // COLLISION AVOIDANCE //
+    //---------------------//
 
     reg [QUEUESIZE-1:0] collisionDetected = 0;
     reg [NCOLS_HCM-1:0] dataPreviouslyWritten [QUEUESIZE-1:0];
-    reg [NCOLS_HCM-1:0] dataSetToWrite;
 
     //-----------------//
     // FILL SEQUENTIAL //
