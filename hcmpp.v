@@ -75,6 +75,14 @@ module HCMPP(
     assign readQueueShifted = (nInReadQueue > 0) && (waitTimeReadQueue[0] == 0);
     assign nInReadQueueAfterShift = nInReadQueue - readQueueShifted;
 
+    //-----------//
+    // COLLISION //
+    //-----------//
+
+    reg [QUEUESIZE-1:0] collisionDetected = 0;
+    reg [NCOLS_HCM-1:0] dataPreviouslyWritten [QUEUESIZE-1:0];
+    reg [NCOLS_HCM-1:0] dataSetToWrite;
+
     //-----------------//
     // FILL SEQUENTIAL //
     //-----------------//
@@ -123,6 +131,7 @@ module HCMPP(
 
         if (reset) begin
             nextHIMAddress <= 0;
+            collisionDetected <= 0;
         end
 
         else begin
@@ -132,40 +141,6 @@ module HCMPP(
             //----------------//
 
             writeToBRAM <= 1'b0; // don't write
-
-            //------------------------------//
-            // MOVE QUEUE AND WRITE TO BRAM //
-            //------------------------------//
-
-            if (nInWriteQueue > 0) begin
-
-                if (waitTimeWriteQueue[0] > 0) begin // nothing to be written yet
-                    for (queueN = 0; queueN < QUEUESIZE; queueN = queueN + 1) begin
-                        waitTimeWriteQueue[queueN] <= waitTimeWriteQueue[queueN] - 1; // reduce wait times
-                    end
-                end
-
-                else begin // write the first item
-                    for (queueN = 0; queueN < QUEUESIZE - 1; queueN = queueN + 1) begin
-                        waitTimeWriteQueue[queueN] <= waitTimeWriteQueue[queueN+1] - 1; // pop an item
-                        queueWriteRow[queueN] <= queueWriteRow[queueN+1]; // pop an item
-                        queueNewNHits[queueN] <= queueNewNHits[queueN+1]; // pop an item
-                        queueSSIDIsNew[queueN] <= queueSSIDIsNew[queueN+1]; // pop an item
-                    end
-                    nInWriteQueue <= nInWriteQueue - 1; // reduce number of items in queue
-                    writeToBRAM <= 1'b1;
-                    rowToWrite <= queueWriteRow[0];
-                    if (queueSSIDIsNew[0]) begin
-                        dataToWrite <= queueNewNHits[0] | (nextHIMAddress << MAXHITNBITS);
-                        nextHIMAddress <= nextHIMAddress + 1;
-                        //$display("New row %d, address %d, hitN %d", queueWriteRow[0], nextHIMAddress, queueNewNHits[0]);
-                    end
-                    else begin
-                        dataToWrite <= dataRead + queueNewNHits[0];
-                        //$display("Existing row %d, address %d, hitN %d", queueWriteRow[0], dataRead[10:3], dataRead[2:0] + queueNewNHits[0]);
-                    end
-                end
-            end
 
             //----------------------------------//
             // MOVE QUEUE AND RETURN READ VALUE //
@@ -183,10 +158,67 @@ module HCMPP(
                     for (queueN = 0; queueN < QUEUESIZE - 1; queueN = queueN + 1) begin
                         waitTimeReadQueue[queueN] <= waitTimeReadQueue[queueN+1] - 1; // pop an item
                         queueReadRow[queueN] <= queueReadRow[queueN+1]; // pop an item
+                        collisionDetected[queueN] <= collisionDetected[queueN+1];
+                        dataPreviouslyWritten[queueN] <= dataPreviouslyWritten[queueN+1];
                     end
                     nInReadQueue <= nInReadQueue - 1; // reduce number of items in queue
                     rowPassed <= queueReadRow[0];
                     rowReadOutput <= dataRead;
+
+                    if (collisionDetected[0]) begin
+                        rowReadOutput <= dataPreviouslyWritten[0];
+                        //$display("Non-collision result for row %d is %b", queueReadRow[0], dataRead);
+                        //$display("Data previously written for row %d was %b", queueReadRow[0], dataPreviouslyWritten[0]);
+                    end
+                end
+            end
+
+            //------------------------------//
+            // MOVE QUEUE AND WRITE TO BRAM //
+            //------------------------------//
+
+            if (nInWriteQueue > 0) begin
+
+                if (waitTimeWriteQueue[0] > 0) begin // nothing to be written yet
+                    for (queueN = 0; queueN < QUEUESIZE; queueN = queueN + 1) begin
+                        waitTimeWriteQueue[queueN] <= waitTimeWriteQueue[queueN] - 1; // reduce wait times
+                    end
+                end
+
+                else begin // write the first item
+
+                    if (queueSSIDIsNew[0]) begin
+                        dataToWrite <= queueNewNHits[0] | (nextHIMAddress << MAXHITNBITS);
+                        nextHIMAddress <= nextHIMAddress + 1;
+                        //$display("New row %d, address %d, hitN %d", queueWriteRow[0], nextHIMAddress, queueNewNHits[0]);
+                        dataPreviouslyWritten[nInReadQueueAfterShift] <= queueNewNHits[0] | (nextHIMAddress << MAXHITNBITS); // in case of collision
+                        //$display("Setting collision readout data to %b", queueWriteRow[0]);
+                    end
+
+                    else begin
+
+                        dataToWrite <= dataRead + queueNewNHits[0];
+                        dataPreviouslyWritten[nInReadQueueAfterShift] <= dataRead + queueNewNHits[0]; // in case of collision
+
+                        if (collisionDetected[0]) begin
+                            dataToWrite <= dataPreviouslyWritten[0] + queueNewNHits[0];
+                            dataPreviouslyWritten[nInReadQueueAfterShift] <= dataPreviouslyWritten[0] + queueNewNHits[0]; // in case of collision
+                        end
+
+                        //$display("Setting collision readout data to %b", queueWriteRow[0]);
+                        //$display("Existing row %d, address %d, hitN %d", queueWriteRow[0], dataRead[10:3], dataRead[2:0] + queueNewNHits[0]);
+                    end
+
+                    for (queueN = 0; queueN < QUEUESIZE - 1; queueN = queueN + 1) begin
+                        waitTimeWriteQueue[queueN] <= waitTimeWriteQueue[queueN+1] - 1; // pop an item
+                        queueWriteRow[queueN] <= queueWriteRow[queueN+1]; // pop an item
+                        queueNewNHits[queueN] <= queueNewNHits[queueN+1]; // pop an item
+                        queueSSIDIsNew[queueN] <= queueSSIDIsNew[queueN+1]; // pop an item
+                    end
+
+                    nInWriteQueue <= nInWriteQueue - 1; // reduce number of items in queue
+                    writeToBRAM <= 1'b1;
+                    rowToWrite <= queueWriteRow[0];
                 end
             end
 
@@ -223,7 +255,15 @@ module HCMPP(
             //-----------------------//
 
             if (writeRow == 1'b1 || readRow == 1'b1) begin // read a whole row
+
                 rowToRead <= writeRow ? inputRowToWrite : inputRowToRead; // request read for this row
+                collisionDetected[nInReadQueueAfterShift] <= 0; // no collision
+
+                if ((waitTimeWriteQueue[0] == 0) && ((writeRow && (inputRowToWrite == queueWriteRow[0])) || (!writeRow && (inputRowToRead == queueWriteRow[0])))) begin // if we're going to write a row, and it's the same as the row we're reading (a collision)
+                    rowToRead <= (writeRow ? inputRowToWrite : inputRowToRead) + 1; // make it a different row
+                    collisionDetected[nInReadQueueAfterShift] <= 1;
+                end
+
                 queueReadRow[nInReadQueueAfterShift] <= writeRow ? inputRowToWrite : inputRowToRead; // place row in queue until read completes
                 waitTimeReadQueue[nInReadQueueAfterShift] <= BRAM_READDELAY; // set the wait time
                 nInReadQueue <= nInReadQueueAfterShift + 1; // increase the number of items in queue

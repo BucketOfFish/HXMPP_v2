@@ -91,7 +91,7 @@ module Testbench_HCM;
     integer currentTime = 0;
 
     initial begin
-        $monitor ("\t%d\t%b", rowPassed, rowReadOutput[12:0]);
+        $monitor ("%d\t%b", debugRowPassed, debugRowReadOutput[12:0]);
         //$monitor ("%d\t%d\t%b", currentTime, rowPassed, rowReadOutput[12:0]);
         //$monitor ("%g\t%b\t%b", $time, SSID_passed[6:0], HCM_readOutput);
     end
