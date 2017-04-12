@@ -4,7 +4,7 @@
 // Testbench for HNM //
 //-------------------//
 
-/*module Testbench_HNM(
+module Testbench_HNM(
     input clk_p,
     input clk_n
     );
@@ -19,14 +19,14 @@
         .O(clk), // buffer output
         .I(clk_p), // diff_p buffer input (connect directly to top-level port)
         .IB(clk_n) // diff_n buffer input (connect directly to top-level port)
-    );*/
+    );
 
-module Testbench_HNM;
+/*module Testbench_HNM;
 
     wire clk;
     Clock clock(
         .clk(clk)
-    );
+    );*/
 
     `include "MyParameters.vh"
 
