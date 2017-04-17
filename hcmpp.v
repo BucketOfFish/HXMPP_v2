@@ -13,6 +13,7 @@ module HCMPP(
     output reg [ROWINDEXBITS_HCM-1:0] rowPassed,
     output reg [NCOLS_HCM-1:0] rowReadOutput,
     output reg [MAXHITNBITS-1:0] nHits,
+    output reg newOutput,
     output reg busy
     );
 
@@ -141,6 +142,7 @@ module HCMPP(
             //----------------//
 
             writeToBRAM <= 1'b0; // don't write
+            newOutput <= 1'b0; // we did not just read something out
 
             //----------------------------------//
             // MOVE QUEUE AND RETURN READ VALUE //
@@ -165,6 +167,7 @@ module HCMPP(
                     rowPassed <= queueReadRow[0];
                     rowReadOutput <= dataRead;
                     nHits <= dataRead[MAXHITNBITS-1:0];
+                    newOutput <= 1'b1;
 
                     if (collisionDetected[0]) begin
                         rowReadOutput <= dataPreviouslyWritten[0];
