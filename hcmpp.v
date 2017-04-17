@@ -7,12 +7,14 @@ module HCMPP(
     input SSIDIsNew,
     input [ROWINDEXBITS_HCM-1:0] inputRowToRead,
     input readRow,
+    input [HITINFOBITS-1:0] inputHitInfo,
     input reset,
     output reg writeReady,
     output reg readReady,
     output reg [ROWINDEXBITS_HCM-1:0] rowPassed,
     output reg [NCOLS_HCM-1:0] rowReadOutput,
     output reg [MAXHITNBITS-1:0] nHits,
+    output reg [NCOLS_HIM-1:0] outputNewHitInfo,
     output reg newOutput,
     output reg busy
     );
@@ -53,6 +55,7 @@ module HCMPP(
 
     reg [ROWINDEXBITS_HCM-1:0] queueWriteRow [QUEUESIZE-1:0];
     reg [MAXHITNBITS-1:0] queueNewNHits [QUEUESIZE-1:0];
+    reg [NCOLS_HIM-1:0] queueNewHitInfo [QUEUESIZE-1:0];
     reg [QUEUESIZE-1:0] queueSSIDIsNew;
     reg [QUEUESIZEBITS-1:0] nInWriteQueue = 0;
     reg [QUEUESIZE-1:0] waitTimeWriteQueue [2:0];
@@ -126,6 +129,8 @@ module HCMPP(
     initial begin
         //$monitor ("%g\t%b\t%b\t%b", $time, writeToBRAM, rowToWrite, dataToWrite[6:0]);
         //$monitor ("%b\t%b\t%b\t%b", debugQueueWriteRow[0], debugQueueNewHitsRow[0], debugRowToRead, debugNInReadQueue);
+        $monitor ("%b\t%d\t%d\t%d\t%d\t%d\t%d\t%d\t%d", writeToBRAM, rowToWrite, rowToWrite[SSIDBITS-1:COLINDEXBITS_HNM], rowToWrite[COLINDEXBITS_HNM-1:0], dataToWrite[MAXHITNBITS-1:0], outputNewHitInfo[ROWINDEXBITS_HCM-1:0], outputNewHitInfo[HITINFOBITS+ROWINDEXBITS_HCM-1:HITINFOBITS], outputNewHitInfo[HITINFOBITS*2+ROWINDEXBITS_HCM:HITINFOBITS*2], outputNewHitInfo[HITINFOBITS*3+ROWINDEXBITS_HCM:HITINFOBITS*3]);
+        //$monitor ("%b\t%d\t%d\t%d\t%d\t%d\t%d\t%d", writeToBRAM, rowToWrite[SSIDBITS-1:COLINDEXBITS_HNM], rowToWrite[COLINDEXBITS_HNM-1:0], dataToWrite[MAXHITNBITS-1:0], queueNewHitInfo[0], queueNewHitInfo[1], queueNewHitInfo[2], queueNewHitInfo[3]);
     end
 
     always @(posedge clk) begin
@@ -219,8 +224,10 @@ module HCMPP(
                         queueWriteRow[queueN] <= queueWriteRow[queueN+1]; // pop an item
                         queueNewNHits[queueN] <= queueNewNHits[queueN+1]; // pop an item
                         queueSSIDIsNew[queueN] <= queueSSIDIsNew[queueN+1]; // pop an item
+                        queueNewHitInfo[queueN] <= queueNewHitInfo[queueN+1]; // pop an item
                     end
 
+                    outputNewHitInfo <= queueNewHitInfo[0]; // return the new hit info
                     nInWriteQueue <= nInWriteQueue - 1; // reduce number of items in queue
                     writeToBRAM <= 1'b1;
                     rowToWrite <= queueWriteRow[0];
@@ -240,6 +247,7 @@ module HCMPP(
                 queueWriteRow[nInWriteQueueAfterShift] <= inputRowToWrite; // place in queue until read completes
                 waitTimeWriteQueue[nInWriteQueueAfterShift] <= BRAM_READDELAY;
                 nInWriteQueue <= nInWriteQueueAfterShift + 1; // increase the number of items in queue
+                queueNewHitInfo[nInWriteQueueAfterShift] <= inputHitInfo;
 
                 for (queueN = 0; queueN < nInWriteQueue; queueN = queueN + 1) begin
                     // if the row was already set to write on the clock edge, don't try to add to that row
@@ -250,6 +258,8 @@ module HCMPP(
                         queueWriteRow[nInWriteQueueAfterShift] <= queueWriteRow[nInWriteQueueAfterShift];
                         waitTimeWriteQueue[nInWriteQueueAfterShift] <= waitTimeWriteQueue[nInWriteQueueAfterShift];
                         nInWriteQueue <= nInWriteQueueAfterShift;
+                        queueNewHitInfo[queueN - writeQueueShifted] <= queueNewHitInfo[queueN] | (inputHitInfo << HITINFOBITS*queueNewNHits[queueN]);
+                        queueNewHitInfo[nInWriteQueueAfterShift] <= 0;
                     end
                 end
                 //$display("%d - %d:%d, %d:%d, %d:%d, %d:%d", nInWriteQueue, queueWriteRow[0], queueNewNHits[0], queueWriteRow[1], queueNewNHits[1], queueWriteRow[2], queueNewNHits[2], queueWriteRow[3], queueNewNHits[3]);
