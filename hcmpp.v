@@ -12,8 +12,8 @@ module HCMPP(
     output reg writeReady,
     output reg readReady,
     output reg [ROWINDEXBITS_HCM-1:0] rowPassed,
-    output reg [NCOLS_HCM-1:0] rowReadOutput,
-    output reg [MAXHITNBITS-1:0] nHits,
+    output reg [MAXHITNBITS-1:0] nOldHits,
+    output reg [MAXHITNBITS-1:0] nNewHits,
     output reg [NCOLS_HIM-1:0] outputNewHitInfo,
     output reg newOutput,
     output reg busy
@@ -129,8 +129,7 @@ module HCMPP(
     initial begin
         //$monitor ("%g\t%b\t%b\t%b", $time, writeToBRAM, rowToWrite, dataToWrite[6:0]);
         //$monitor ("%b\t%b\t%b\t%b", debugQueueWriteRow[0], debugQueueNewHitsRow[0], debugRowToRead, debugNInReadQueue);
-        $monitor ("%b\t%d\t%d\t%d\t%d\t%d\t%d\t%d\t%d", writeToBRAM, rowToWrite, rowToWrite[SSIDBITS-1:COLINDEXBITS_HNM], rowToWrite[COLINDEXBITS_HNM-1:0], dataToWrite[MAXHITNBITS-1:0], outputNewHitInfo[ROWINDEXBITS_HCM-1:0], outputNewHitInfo[HITINFOBITS+ROWINDEXBITS_HCM-1:HITINFOBITS], outputNewHitInfo[HITINFOBITS*2+ROWINDEXBITS_HCM:HITINFOBITS*2], outputNewHitInfo[HITINFOBITS*3+ROWINDEXBITS_HCM:HITINFOBITS*3]);
-        //$monitor ("%b\t%d\t%d\t%d\t%d\t%d\t%d\t%d", writeToBRAM, rowToWrite[SSIDBITS-1:COLINDEXBITS_HNM], rowToWrite[COLINDEXBITS_HNM-1:0], dataToWrite[MAXHITNBITS-1:0], queueNewHitInfo[0], queueNewHitInfo[1], queueNewHitInfo[2], queueNewHitInfo[3]);
+        //$monitor ("%b\t%d\t%d\t%d\t%d\t%d\t%d\t%d\t%d", writeToBRAM, rowToWrite, rowToWrite[SSIDBITS-1:COLINDEXBITS_HNM], rowToWrite[COLINDEXBITS_HNM-1:0], dataToWrite[MAXHITNBITS-1:0], outputNewHitInfo[ROWINDEXBITS_HCM-1:0], outputNewHitInfo[HITINFOBITS+ROWINDEXBITS_HCM-1:HITINFOBITS], outputNewHitInfo[HITINFOBITS*2+ROWINDEXBITS_HCM:HITINFOBITS*2], outputNewHitInfo[HITINFOBITS*3+ROWINDEXBITS_HCM:HITINFOBITS*3]);
     end
 
     always @(posedge clk) begin
@@ -169,14 +168,8 @@ module HCMPP(
                         dataPreviouslyWritten[queueN] <= dataPreviouslyWritten[queueN+1];
                     end
                     nInReadQueue <= nInReadQueue - 1; // reduce number of items in queue
-                    rowPassed <= queueReadRow[0];
-                    rowReadOutput <= dataRead;
-                    nHits <= dataRead[MAXHITNBITS-1:0];
-                    newOutput <= 1'b1;
 
                     if (collisionDetected[0]) begin
-                        rowReadOutput <= dataPreviouslyWritten[0];
-                        nHits <= dataPreviouslyWritten[0][MAXHITNBITS-1:0];
                         //$display("Non-collision result for row %d is %b", queueReadRow[0], dataRead);
                         //$display("Data previously written for row %d was %b", queueReadRow[0], dataPreviouslyWritten[0]);
                     end
@@ -203,20 +196,25 @@ module HCMPP(
                         //$display("New row %d, address %d, hitN %d", queueWriteRow[0], nextHIMAddress, queueNewNHits[0]);
                         dataPreviouslyWritten[nInReadQueueAfterShift] <= queueNewNHits[0] | (nextHIMAddress << MAXHITNBITS); // in case of collision
                         //$display("Setting collision readout data to %b", queueWriteRow[0]);
+                        nOldHits <= 0;
+                        nNewHits <= queueNewNHits[0];
                     end
 
                     else begin
 
                         dataToWrite <= dataRead + queueNewNHits[0];
                         dataPreviouslyWritten[nInReadQueueAfterShift] <= dataRead + queueNewNHits[0]; // in case of collision
+                        nOldHits <= dataRead[MAXHITNBITS-1:0];
 
                         if (collisionDetected[0]) begin
                             dataToWrite <= dataPreviouslyWritten[0] + queueNewNHits[0];
                             dataPreviouslyWritten[nInReadQueueAfterShift] <= dataPreviouslyWritten[0] + queueNewNHits[0]; // in case of collision
+                            nOldHits <= dataPreviouslyWritten[0][MAXHITNBITS-1:0];
                         end
 
                         //$display("Setting collision readout data to %b", queueWriteRow[0]);
                         //$display("Existing row %d, address %d, hitN %d", queueWriteRow[0], dataRead[10:3], dataRead[2:0] + queueNewNHits[0]);
+                        nNewHits <= queueNewNHits[0];
                     end
 
                     for (queueN = 0; queueN < QUEUESIZE - 1; queueN = queueN + 1) begin
@@ -231,6 +229,8 @@ module HCMPP(
                     nInWriteQueue <= nInWriteQueue - 1; // reduce number of items in queue
                     writeToBRAM <= 1'b1;
                     rowToWrite <= queueWriteRow[0];
+                    rowPassed <= queueWriteRow[0];
+                    newOutput <= 1'b1;
                 end
             end
 
