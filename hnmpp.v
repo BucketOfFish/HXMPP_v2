@@ -19,7 +19,7 @@ module HNMPP(
     output reg HNM_readOutput, // whether or not HNM stored 1 for that SSID
     output reg [ROWINDEXBITS_HNM-1:0] rowPassed,
     output reg [NCOLS_HNM-1:0] rowReadOutput,
-    output reg newOutput,
+    output reg newOutput = 0,
     output reg busy
     );
 

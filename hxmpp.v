@@ -66,8 +66,6 @@ module hxmpp(
     // with the HIM address, how many hits were pre-existing, and the new hits
     // along with their info.
 
-    reg [HITINFOBITS-1:0] HCM_inputHitInfo,
-
     wire [ROWINDEXBITS_HCM-1:0] HCM_SSID_passed;
     wire [MAXHITNBITS-1:0] HCM_nOldHits;
     wire [MAXHITNBITS-1:0] HCM_nNewHits;
@@ -86,7 +84,7 @@ module hxmpp(
         .SSIDIsNew(~HNM_hitExisted),
         .inputRowToRead(0),
         .readRow(0),
-        .inputHitInfo(HCM_inputHitInfo),
+        .inputHitInfo(queueHitInfo[0]),
         .rowPassed(HCM_SSID_passed),
         .nOldHits(HCM_nOldHits),
         .nNewHits(HCM_nNewHits),
@@ -109,15 +107,14 @@ module hxmpp(
 
     always @(posedge clk) begin
 
-        if (write) queueHitInfo[nInQueue - HNM_newOutput] <= writeHitInfo; // add hit info to queue for new hit
-        HCM_inputHitInfo <= queueHitInfo[0]; // the first hit info in the queue is the next to be used by HCM
-
         if (HNM_newOutput) begin // if the first item has been used
             for (queueN = 0; queueN < QUEUESIZE - 1; queueN = queueN + 1) begin
                 queueHitInfo[queueN] <= queueHitInfo[queueN+1]; // pop an item
             end
-            nInQueue <= nInQueue - 1;
         end
+
+        if (write) queueHitInfo[nInQueue - HNM_newOutput] <= writeHitInfo; // add hit info to queue for new hit
+        nInQueue <= nInQueue + write - HNM_newOutput;
     end
 
     //-----//
