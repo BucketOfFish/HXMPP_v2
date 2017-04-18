@@ -4,7 +4,7 @@
 // Testbench for HXM //
 //-------------------//
 
-/*module Testbench_All(
+module Testbench_All(
     input clk_p,
     input clk_n
     );
@@ -19,14 +19,14 @@
         .O(clk), // buffer output
         .I(clk_p), // diff_p buffer input (connect directly to top-level port)
         .IB(clk_n) // diff_n buffer input (connect directly to top-level port)
-    );*/
+    );
 
-module Testbench_All;
+/*module Testbench_All;
 
     wire clk;
     Clock clock(
         .clk(clk)
-    );
+    );*/
 
     `include "MyParameters.vh"
 

@@ -13,6 +13,7 @@ module hxmpp(
     input read,
     input [ROWINDEXBITS_HCM-1:0] readSSID,
     output [SSIDBITS-1:0] SSID_read, // return value
+    output nHits, // return value
     output [HITINFOBITS-1:0] hitInfo_read // return value
     );
 
@@ -100,7 +101,9 @@ module hxmpp(
     // HIT INFO QUEUE //
     //----------------//
 
+    (*mark_debug="TRUE"*)
     reg [NCOLS_HIM-1:0] queueHitInfo [QUEUESIZE-1:0];
+    (*mark_debug="TRUE"*)
     reg [QUEUESIZEBITS-1:0] nInQueue = 0;
 
     reg [QUEUESIZEBITS-1:0] queueN = 0; // can't do loop variable declaration
@@ -111,10 +114,14 @@ module hxmpp(
             for (queueN = 0; queueN < QUEUESIZE - 1; queueN = queueN + 1) begin
                 queueHitInfo[queueN] <= queueHitInfo[queueN+1]; // pop an item
             end
+            nInQueue <= nInQueue - 1;
         end
 
-        if (write) queueHitInfo[nInQueue - HNM_newOutput] <= writeHitInfo; // add hit info to queue for new hit
-        nInQueue <= nInQueue + write - HNM_newOutput;
+        if (write) begin
+            queueHitInfo[nInQueue - HNM_newOutput] <= writeHitInfo; // add hit info to queue for new hit
+            nInQueue <= nInQueue + 1;
+            if (HNM_newOutput) nInQueue <= nInQueue;
+        end
     end
 
     //-----//
