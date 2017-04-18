@@ -1,41 +1,39 @@
 `timescale 1ns / 1ps
 
-module HCMPP(
+module HIMPP(
     input clk,
-    input [ROWINDEXBITS_HCM-1:0] inputRowToWrite,
-    input writeRow,
-    input SSIDIsNew,
-    input [ROWINDEXBITS_HCM-1:0] inputRowToRead,
-    input readRow,
-    input [HITINFOBITS-1:0] inputHitInfo,
     input reset,
+    input writeRow,
+    input [ROWINDEXBITS_HIM-1:0] inputRowToWrite,
+    input [ROWINDEXBITS_HIM-1:0] inputRowToRead,
+    input readRow,
+    input [NCOLS_HIM-1:0] inputHitInfo,
+    input [MAXHITNBITS-1:0] nOldHits,
+    input [MAXHITNBITS-1:0] nNewHits,
     output reg writeReady,
     output reg readReady,
-    output reg [ROWINDEXBITS_HCM-1:0] rowPassed,
-    output reg [MAXHITNBITS-1:0] nOldHits,
-    output reg [MAXHITNBITS-1:0] nNewHits,
-    output reg [ROWINDEXBITS_HIM-1:0] HIM_address,
-    output reg [NCOLS_HIM-1:0] outputNewHitInfo,
-    output reg newOutput,
     output reg busy
     );
 
     `include "MyParameters.vh"
 
     //-------------//
-    // HCM BRAM IP //
+    // HIM BRAM IP //
     //-------------//
 
+    (*mark_debug="TRUE"*)
     reg writeToBRAM = 0;
-    reg [ROWINDEXBITS_HCM-1:0] rowToWrite;
-    reg [NCOLS_HCM-1:0] dataToWrite;
-    reg [ROWINDEXBITS_HCM-1:0] rowToRead;
-    wire [NCOLS_HCM-1:0] dataRead;
+    (*mark_debug="TRUE"*)
+    reg [ROWINDEXBITS_HIM-1:0] rowToWrite;
+    (*mark_debug="TRUE"*)
+    reg [NCOLS_HIM-1:0] dataToWrite;
+    reg [ROWINDEXBITS_HIM-1:0] rowToRead;
+    wire [NCOLS_HIM-1:0] dataRead;
 
-    wire [NCOLS_HCM-1:0] dummyRead;
-    reg [NCOLS_HCM-1:0] dummyWrite = 0;
+    wire [NCOLS_HIM-1:0] dummyRead;
+    reg [NCOLS_HIM-1:0] dummyWrite = 0;
 
-    hcmpp HCM_BRAM (
+    himpp HIM_BRAM (
         .clka(clk),
         .ena(1'b1),
         .wea(writeToBRAM),
@@ -51,13 +49,13 @@ module HCMPP(
         );
 
     //-----------------//
-    // HCM WRITE QUEUE //
+    // HIM WRITE QUEUE //
     //-----------------//
 
-    reg [ROWINDEXBITS_HCM-1:0] queueWriteRow [QUEUESIZE-1:0];
-    reg [MAXHITNBITS-1:0] queueNewNHits [QUEUESIZE-1:0];
-    reg [NCOLS_HIM-1:0] queueNewHitInfo [QUEUESIZE-1:0];
-    reg [QUEUESIZE-1:0] queueSSIDIsNew;
+    reg [ROWINDEXBITS_HIM-1:0] queueWriteRow [QUEUESIZE-1:0];
+    reg [QUEUESIZE-1:0] queueNNewHits;
+    reg [QUEUESIZE-1:0] queueNOldHits [MAXHITNBITS-1:0];
+    reg [NCOLS_HIM-1:0] queueNewHitsInfo [QUEUESIZE-1:0];
     reg [QUEUESIZEBITS-1:0] nInWriteQueue = 0;
     reg [QUEUESIZE-1:0] waitTimeWriteQueue [2:0];
 
@@ -66,13 +64,11 @@ module HCMPP(
     assign writeQueueShifted = (nInWriteQueue > 0) && (waitTimeWriteQueue[0] == 0);
     assign nInWriteQueueAfterShift = nInWriteQueue - writeQueueShifted;
 
-    reg [ROWINDEXBITS_HIM-1:0] nextHIMAddress = 0; // next available address
-
     //----------------//
-    // HCM READ QUEUE //
+    // HIM READ QUEUE //
     //----------------//
 
-    reg [ROWINDEXBITS_HCM-1:0] queueReadRow [QUEUESIZE-1:0];
+    reg [ROWINDEXBITS_HIM-1:0] queueReadRow [QUEUESIZE-1:0];
     reg [QUEUESIZEBITS-1:0] nInReadQueue = 0;
     reg [QUEUESIZE-1:0] waitTimeReadQueue [2:0];
 
@@ -86,15 +82,7 @@ module HCMPP(
     //---------------------//
 
     reg [QUEUESIZE-1:0] collisionDetected = 0;
-    reg [NCOLS_HCM-1:0] dataPreviouslyWritten [QUEUESIZE-1:0];
-
-    //-----------------//
-    // FILL SEQUENTIAL //
-    //-----------------//
-
-    reg [1:0] fillStatus = 2'b00; // 00 = idle; 01 = filling; 10 = fill finished; 11 = ready to go
-    reg [ROWINDEXBITS_HCM-1:0] fillRow = 0;
-    reg [3:0] fillDelay = 0; // wait a safe amount of time after testing before resuming read and write
+    reg [NCOLS_HIM-1:0] dataPreviouslyWritten [QUEUESIZE-1:0];
 
     //-----------------//
     // STUPID BULLSHIT //
@@ -106,37 +94,15 @@ module HCMPP(
     // TESTING //
     //---------//
 
-    (*mark_debug="TRUE"*)
-    reg [ROWINDEXBITS_HCM-1:0] debugQueueWriteRow [QUEUESIZE-1:0];
-    (*mark_debug="TRUE"*)
-    reg [MAXHITNBITS-1:0] debugQueueNewNHits [QUEUESIZE-1:0];
-    (*mark_debug="TRUE"*)
-    reg [ROWINDEXBITS_HCM-1:0] debugRowToRead;
-    (*mark_debug="TRUE"*)
-    reg [QUEUESIZEBITS-1:0] debugNInReadQueue = 0;
-
-    genvar i;
-    generate
-        for (i = 0; i < QUEUESIZE; i = i + 1) begin
-            always @(posedge clk) begin
-                debugQueueWriteRow[i] <= queueWriteRow[i];
-                debugQueueNewNHits[i] <= queueNewNHits[i];
-                debugRowToRead <= rowToRead;
-                debugNInReadQueue <= nInReadQueue;
-            end
-        end
-    endgenerate
-
     initial begin
         //$monitor ("%g\t%b\t%b\t%b", $time, writeToBRAM, rowToWrite, dataToWrite[6:0]);
         //$monitor ("%b\t%b\t%b\t%b", debugQueueWriteRow[0], debugQueueNewHitsRow[0], debugRowToRead, debugNInReadQueue);
-        //$monitor ("%b\t%d\t%d\t%d\t%d\t%d\t%d\t%d\t%d", writeToBRAM, rowToWrite, rowToWrite[SSIDBITS-1:COLINDEXBITS_HNM], rowToWrite[COLINDEXBITS_HNM-1:0], dataToWrite[MAXHITNBITS-1:0], outputNewHitInfo[ROWINDEXBITS_HCM-1:0], outputNewHitInfo[HITINFOBITS+ROWINDEXBITS_HCM-1:HITINFOBITS], outputNewHitInfo[HITINFOBITS*2+ROWINDEXBITS_HCM:HITINFOBITS*2], outputNewHitInfo[HITINFOBITS*3+ROWINDEXBITS_HCM:HITINFOBITS*3]);
+        $monitor ("HIM\t%b\t%d\t%d\t%d\t%d\t%d", writeToBRAM, rowToWrite, dataToWrite[ROWINDEXBITS_HCM-1:0], dataToWrite[HITINFOBITS+ROWINDEXBITS_HCM-1:HITINFOBITS], dataToWrite[HITINFOBITS*2+ROWINDEXBITS_HCM:HITINFOBITS*2], dataToWrite[HITINFOBITS*3+ROWINDEXBITS_HCM:HITINFOBITS*3]);
     end
 
     always @(posedge clk) begin
 
         if (reset) begin
-            nextHIMAddress <= 0;
             collisionDetected <= 0;
             nInReadQueue <= 0;
             nInWriteQueue <= 0;
@@ -149,7 +115,6 @@ module HCMPP(
             //----------------//
 
             writeToBRAM <= 1'b0; // don't write
-            newOutput <= 1'b0; // we did not just read something out
 
             //----------------------------------//
             // MOVE QUEUE AND RETURN READ VALUE //
@@ -193,49 +158,33 @@ module HCMPP(
 
                 else begin // write the first item
 
-                    if (queueSSIDIsNew[0]) begin
-                        dataToWrite <= queueNewNHits[0] | (nextHIMAddress << MAXHITNBITS);
-                        HIM_address <= nextHIMAddress; // return HIM address
-                        nextHIMAddress <= nextHIMAddress + 1;
-                        //$display("New row %d, address %d, hitN %d", queueWriteRow[0], nextHIMAddress, queueNewNHits[0]);
-                        dataPreviouslyWritten[nInReadQueueAfterShift] <= queueNewNHits[0] | (nextHIMAddress << MAXHITNBITS); // in case of collision
-                        //$display("Setting collision readout data to %b", queueWriteRow[0]);
-                        nOldHits <= 0;
-                        nNewHits <= queueNewNHits[0];
+                    if (queueNOldHits[0] == 0) begin // first hit for this SSID
+                        dataToWrite <= queueNewHitsInfo[0];
+                        dataPreviouslyWritten[nInReadQueueAfterShift] <= queueNewHitsInfo[0];
                     end
 
                     else begin
 
-                        dataToWrite <= dataRead + queueNewNHits[0];
-                        HIM_address <= dataRead[NCOLS_HCM-1:MAXHITNBITS]; // return HIM address
-                        dataPreviouslyWritten[nInReadQueueAfterShift] <= dataRead + queueNewNHits[0]; // in case of collision
-                        nOldHits <= dataRead[MAXHITNBITS-1:0];
+                        dataToWrite <= dataRead | (queueNewHitsInfo[0] << queueNOldHits[0]*HITINFOBITS);
+                        dataPreviouslyWritten[nInReadQueueAfterShift] <= dataRead | (queueNewHitsInfo[0] << queueNOldHits[0]*HITINFOBITS);
 
                         if (collisionDetected[0]) begin
-                            dataToWrite <= dataPreviouslyWritten[0] + queueNewNHits[0];
-                            dataPreviouslyWritten[nInReadQueueAfterShift] <= dataPreviouslyWritten[0] + queueNewNHits[0]; // in case of collision
-                            nOldHits <= dataPreviouslyWritten[0][MAXHITNBITS-1:0];
+                            dataToWrite <= dataPreviouslyWritten[0] | (queueNewHitsInfo[0] << queueNOldHits[0]*HITINFOBITS);
+                            dataPreviouslyWritten[nInReadQueueAfterShift] <= dataPreviouslyWritten[0] | (queueNewHitsInfo[0] << queueNOldHits[0]*HITINFOBITS);
                         end
-
-                        //$display("Setting collision readout data to %b", queueWriteRow[0]);
-                        //$display("Existing row %d, address %d, hitN %d", queueWriteRow[0], dataRead[10:3], dataRead[2:0] + queueNewNHits[0]);
-                        nNewHits <= queueNewNHits[0];
                     end
 
                     for (queueN = 0; queueN < QUEUESIZE - 1; queueN = queueN + 1) begin
                         waitTimeWriteQueue[queueN] <= waitTimeWriteQueue[queueN+1] - 1; // pop an item
+                        queueNewHitsInfo[queueN] <= queueNewHitsInfo[queueN+1]; // pop an item
+                        queueNNewHits[queueN] <= queueNNewHits[queueN+1]; // pop an item
+                        queueNOldHits[queueN] <= queueNOldHits[queueN+1]; // pop an item
                         queueWriteRow[queueN] <= queueWriteRow[queueN+1]; // pop an item
-                        queueNewNHits[queueN] <= queueNewNHits[queueN+1]; // pop an item
-                        queueSSIDIsNew[queueN] <= queueSSIDIsNew[queueN+1]; // pop an item
-                        queueNewHitInfo[queueN] <= queueNewHitInfo[queueN+1]; // pop an item
                     end
 
-                    outputNewHitInfo <= queueNewHitInfo[0]; // return the new hit info
                     nInWriteQueue <= nInWriteQueue - 1; // reduce number of items in queue
                     writeToBRAM <= 1'b1;
                     rowToWrite <= queueWriteRow[0];
-                    rowPassed <= queueWriteRow[0];
-                    newOutput <= 1'b1;
                 end
             end
 
@@ -247,27 +196,28 @@ module HCMPP(
 
 
                 // add to queue if not already there
-                queueSSIDIsNew[nInWriteQueueAfterShift] <= SSIDIsNew;
-                queueNewNHits[nInWriteQueueAfterShift] <= 1;
+                queueNNewHits[nInWriteQueueAfterShift] <= nNewHits;
+                queueNOldHits[nInWriteQueueAfterShift] <= nOldHits;
+                queueNewHitsInfo[nInWriteQueueAfterShift] <= inputHitInfo;
                 queueWriteRow[nInWriteQueueAfterShift] <= inputRowToWrite; // place in queue until read completes
                 waitTimeWriteQueue[nInWriteQueueAfterShift] <= BRAM_READDELAY;
                 nInWriteQueue <= nInWriteQueueAfterShift + 1; // increase the number of items in queue
-                queueNewHitInfo[nInWriteQueueAfterShift] <= inputHitInfo;
+                //$display("Just checking - %b\t%b", queueNewHitsInfo[nInWriteQueueAfterShift], queueNNewHits[nInWriteQueueAfterShift]);
 
                 for (queueN = 0; queueN < nInWriteQueue; queueN = queueN + 1) begin
                     // if the row was already set to write on the clock edge, don't try to add to that row
                     if (queueWriteRow[queueN] == inputRowToWrite && waitTimeWriteQueue[queueN] > 0) begin
                         // undo the new item in queue and add to existing row in queue
-                        queueNewNHits[nInWriteQueueAfterShift] <= 0;
-                        queueNewNHits[queueN - writeQueueShifted] <= queueNewNHits[queueN] + 1;
+                        nInWriteQueue <= 0;
+                        queueNNewHits[queueN - writeQueueShifted] <= queueNNewHits[queueN] + nNewHits;
+                        queueNOldHits[queueN - writeQueueShifted] <= queueNOldHits[queueN] + nOldHits;
+                        queueNewHitsInfo[queueN - writeQueueShifted] <= queueNewHitsInfo[queueN] | (inputHitInfo << queueNNewHits[queueN]*HITINFOBITS);
+                        //$display("Just checking - %b\t%b", queueNewHitsInfo[queueN], (inputHitInfo << queueNNewHits[queueN]*HITINFOBITS));
                         queueWriteRow[nInWriteQueueAfterShift] <= queueWriteRow[nInWriteQueueAfterShift];
                         waitTimeWriteQueue[nInWriteQueueAfterShift] <= waitTimeWriteQueue[nInWriteQueueAfterShift];
                         nInWriteQueue <= nInWriteQueueAfterShift;
-                        queueNewHitInfo[queueN - writeQueueShifted] <= queueNewHitInfo[queueN] | (inputHitInfo << HITINFOBITS*queueNewNHits[queueN]);
-                        queueNewHitInfo[nInWriteQueueAfterShift] <= 0;
                     end
                 end
-                //$display("%d - %d:%d, %d:%d, %d:%d, %d:%d", nInWriteQueue, queueWriteRow[0], queueNewNHits[0], queueWriteRow[1], queueNewNHits[1], queueWriteRow[2], queueNewNHits[2], queueWriteRow[3], queueNewNHits[3]);
             end
 
             //-----------------------//

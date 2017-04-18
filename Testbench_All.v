@@ -83,8 +83,9 @@ module Testbench_All(
     //-----//
 
     // Pass SSIDs as they come from HNM. Also pass whether these SSIDs were
-    // newly stored. Watch as the SSIDs come back out, along with the HIM
-    // address and how many hits were pre-existing.
+    // newly stored. Pass hit info too. Watch as the SSIDs come back out, along
+    // with the HIM address, how many hits were pre-existing, and the new hits
+    // along with their info.
 
     (*mark_debug="TRUE"*)
     wire [ROWINDEXBITS_HCM-1:0] HCM_SSID_passed;
@@ -100,6 +101,7 @@ module Testbench_All(
     reg [HITINFOBITS-1:0] inputHitInfo;
     (*mark_debug="TRUE"*)
     wire [NCOLS_HIM-1:0] HCM_newHitInfo;
+    wire [ROWINDEXBITS_HIM-1:0] HIM_address;
 
     HCMPP HCM (
         .clk(clk),
@@ -113,11 +115,36 @@ module Testbench_All(
         .rowPassed(HCM_SSID_passed),
         .nOldHits(HCM_nOldHits),
         .nNewHits(HCM_nNewHits),
+        .HIM_address(HIM_address),
         .outputNewHitInfo(HCM_newHitInfo),
         .newOutput(HCM_newOutput),
         .writeReady(HCM_writeReady),
         .readReady(HCM_readReady),
         .busy(HCM_busy)
+    );
+
+    //-----//
+    // HIM //
+    //-----//
+
+    // Pass SSIDs as they come from HCM, along with the existing number of
+    // hits, new hits, and hit info.
+
+    wire HIM_readReady, HIM_writeReady, HIM_busy;
+
+    HIMPP HIM (
+        .clk(clk),
+        .reset(reset),
+        .writeRow(HCM_newOutput),
+        .inputRowToWrite(HIM_address),
+        .inputRowToRead(0),
+        .readRow(0),
+        .inputHitInfo(HCM_newHitInfo),
+        .nOldHits(HCM_nOldHits),
+        .nNewHits(HCM_nNewHits),
+        .writeReady(HIM_writeReady),
+        .readReady(HIM_readReady),
+        .busy(HIM_busy)
     );
     
     //------------------//
@@ -131,14 +158,14 @@ module Testbench_All(
     reg [SSIDBITS-1:0] testingSSID = 0; // SSID for reading and writing
 
     reg [ROWINDEXBITS_HNM-1:0] testingSSID_row[22:0] = {8, 8, 8, 8, 8, 8, 8, 8, 2, 9, 4, 12, 3, 3, 8, 4, 4, 4, 4, 4, 4, 4, 4};
-    reg [COLINDEXBITS_HNM-1:0] testingSSID_col[22:0] = {8, 0, 7, 8, 8, 8, 5, 11, 11, 7, 1, 7, 5, 6, 8, 12, 4, 4, 7, 2, 1, 8, 6};
+    reg [COLINDEXBITS_HNM-1:0] testingSSID_col[22:0] = {8, 0, 7, 0, 8, 8, 5, 11, 11, 7, 1, 7, 5, 6, 8, 12, 4, 4, 7, 2, 1, 8, 6};
 
     integer currentTime = 0;
 
     initial begin
         //$monitor ("%b\t%d\t%d\t%b", HNM_newOutput, HNM_SSID_passed[SSIDBITS-1:COLINDEXBITS_HNM], HNM_SSID_passed[COLINDEXBITS_HNM-1:0], HNM_hitExisted);
         //$monitor ("%b\t%d\t%d\t%b", HCM_newOutput, HCM_SSID_passed[SSIDBITS-1:COLINDEXBITS_HNM], HCM_SSID_passed[COLINDEXBITS_HNM-1:0], HCM_nHits);
-        $monitor ("%b\t%d\t%d\t%d\t%d\t%d\t%d\t%d\t%d\t%d", HCM_newOutput, HCM_SSID_passed, HCM_SSID_passed[SSIDBITS-1:COLINDEXBITS_HNM], HCM_SSID_passed[COLINDEXBITS_HNM-1:0], HCM_nOldHits, HCM_nNewHits, HCM_newHitInfo[ROWINDEXBITS_HCM-1:0], HCM_newHitInfo[HITINFOBITS+ROWINDEXBITS_HCM-1:HITINFOBITS], HCM_newHitInfo[HITINFOBITS*2+ROWINDEXBITS_HCM:HITINFOBITS*2], HCM_newHitInfo[HITINFOBITS*3+ROWINDEXBITS_HCM:HITINFOBITS*3]);
+        //$monitor ("HCM\t%b\t%d\t%d\t%d\t%d\t%d\t%d\t%d\t%d\t%d\t%d", HCM_newOutput, HCM_SSID_passed, HCM_SSID_passed[SSIDBITS-1:COLINDEXBITS_HNM], HCM_SSID_passed[COLINDEXBITS_HNM-1:0], HCM_nOldHits, HCM_nNewHits, HIM_address, HCM_newHitInfo[ROWINDEXBITS_HCM-1:0], HCM_newHitInfo[HITINFOBITS+ROWINDEXBITS_HCM-1:HITINFOBITS], HCM_newHitInfo[HITINFOBITS*2+ROWINDEXBITS_HCM:HITINFOBITS*2], HCM_newHitInfo[HITINFOBITS*3+ROWINDEXBITS_HCM:HITINFOBITS*3]);
     end
 
     always @(posedge clk) begin
