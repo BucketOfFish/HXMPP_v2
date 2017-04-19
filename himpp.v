@@ -137,7 +137,6 @@ module HIMPP(
                         dataPreviouslyWritten[queueN] <= dataPreviouslyWritten[queueN+1];
                     end
                     nInReadQueue <= nInReadQueue - 1; // reduce number of items in queue
-$display("Row %d", queueReadRow[0]);
                     hitInfo_read <= dataRead;
 
                     if (collisionDetected[0]) begin

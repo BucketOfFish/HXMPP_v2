@@ -15,6 +15,7 @@ module HCMPP(
     output reg [MAXHITNBITS-1:0] nOldHits,
     output reg [MAXHITNBITS-1:0] nNewHits,
     output reg [MAXHITNBITS-1:0] readNHits,
+    output reg [ROWINDEXBITS_HIM-1:0] readHIM_address,
     output reg [ROWINDEXBITS_HIM-1:0] HIM_address,
     output reg [NCOLS_HIM-1:0] outputNewHitInfo,
     output reg newOutput,
@@ -180,11 +181,13 @@ module HCMPP(
                     readFinished <= 1'b0;
                     if (queueRequestedRead[0]) readFinished <= 1; // only for requested reads
                     readNHits <= dataRead[MAXHITNBITS-1:0];
+                    readHIM_address <= dataRead[NCOLS_HCM-1:MAXHITNBITS];
 
                     if (collisionDetected[0]) begin
                         //$display("Non-collision result for row %d is %b", queueReadRow[0], dataRead);
                         //$display("Data previously written for row %d was %b", queueReadRow[0], dataPreviouslyWritten[0]);
                         readNHits <= dataPreviouslyWritten[0][MAXHITNBITS-1:0];
+                        readHIM_address <= dataPreviouslyWritten[0][NCOLS_HCM-1:MAXHITNBITS];
                     end
                 end
             end

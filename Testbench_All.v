@@ -47,7 +47,7 @@ module Testbench_All;
     wire [SSIDBITS-1:0] SSID_read;
     wire hitThisEvent;
     wire [MAXHITNBITS-1:0] nHits;
-    wire [HITINFOBITS-1:0] hitInfo_read;
+    wire [NCOLS_HIM-1:0] hitInfo_read;
 
     hxmpp hxm (
         .clk(clk),

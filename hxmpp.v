@@ -25,6 +25,60 @@ module hxmpp(
     assign hitThisEvent = HNM_hitExisted;
     assign nHits = readNHits;
 
+    //-------------------//
+    // READ OUTPUT QUEUE //
+    //-------------------//
+
+/*
+    reg [NCOLS_HIM-1:0] queueHitInfo [QUEUESIZE-1:0];
+    reg [QUEUESIZEBITS-1:0] nInQueue = 0;
+
+    reg [QUEUESIZEBITS-1:0] queueN = 0; // can't do loop variable declaration
+
+    always @(posedge clk) begin
+
+        if (HNM_newOutput) begin // if the first item has been used
+            for (queueN = 0; queueN < QUEUESIZE - 1; queueN = queueN + 1) begin
+                queueHitInfo[queueN] <= queueHitInfo[queueN+1]; // pop an item
+            end
+            nInQueue <= nInQueue - 1;
+        end
+
+        if (write) begin
+            queueHitInfo[nInQueue - HNM_newOutput] <= writeHitInfo; // add hit info to queue for new hit
+            nInQueue <= nInQueue + 1;
+            if (HNM_newOutput) nInQueue <= nInQueue;
+        end
+    end
+*/
+
+    //----------------//
+    // HIT INFO QUEUE //
+    //----------------//
+
+    (*mark_debug="TRUE"*)
+    reg [NCOLS_HIM-1:0] queueHitInfo [QUEUESIZE-1:0];
+    (*mark_debug="TRUE"*)
+    reg [QUEUESIZEBITS-1:0] nInQueue = 0;
+
+    reg [QUEUESIZEBITS-1:0] queueN = 0; // can't do loop variable declaration
+
+    always @(posedge clk) begin
+
+        if (HNM_newOutput) begin // if the first item has been used
+            for (queueN = 0; queueN < QUEUESIZE - 1; queueN = queueN + 1) begin
+                queueHitInfo[queueN] <= queueHitInfo[queueN+1]; // pop an item
+            end
+            nInQueue <= nInQueue - 1;
+        end
+
+        if (write) begin
+            queueHitInfo[nInQueue - HNM_newOutput] <= writeHitInfo; // add hit info to queue for new hit
+            nInQueue <= nInQueue + 1;
+            if (HNM_newOutput) nInQueue <= nInQueue;
+        end
+    end
+
     //-----//
     // HNM //
     //-----//
@@ -84,6 +138,8 @@ module hxmpp(
     wire [ROWINDEXBITS_HIM-1:0] HIM_address;
     wire [SSIDBITS-1:0] placeholderRowPassed;
 
+    wire [ROWINDEXBITS_HIM-1:0] readHIM_address;
+
     HCMPP HCM (
         .clk(clk),
         .reset(reset),
@@ -97,6 +153,7 @@ module hxmpp(
         .nOldHits(HCM_nOldHits),
         .nNewHits(HCM_nNewHits),
         .readNHits(readNHits),
+        .readHIM_address(readHIM_address),
         .HIM_address(HIM_address),
         .outputNewHitInfo(HCM_newHitInfo),
         .newOutput(HCM_newOutput),
@@ -105,33 +162,6 @@ module hxmpp(
         .readReady(HCM_readReady),
         .busy(HCM_busy)
     );
-
-    //----------------//
-    // HIT INFO QUEUE //
-    //----------------//
-
-    (*mark_debug="TRUE"*)
-    reg [NCOLS_HIM-1:0] queueHitInfo [QUEUESIZE-1:0];
-    (*mark_debug="TRUE"*)
-    reg [QUEUESIZEBITS-1:0] nInQueue = 0;
-
-    reg [QUEUESIZEBITS-1:0] queueN = 0; // can't do loop variable declaration
-
-    always @(posedge clk) begin
-
-        if (HNM_newOutput) begin // if the first item has been used
-            for (queueN = 0; queueN < QUEUESIZE - 1; queueN = queueN + 1) begin
-                queueHitInfo[queueN] <= queueHitInfo[queueN+1]; // pop an item
-            end
-            nInQueue <= nInQueue - 1;
-        end
-
-        if (write) begin
-            queueHitInfo[nInQueue - HNM_newOutput] <= writeHitInfo; // add hit info to queue for new hit
-            nInQueue <= nInQueue + 1;
-            if (HNM_newOutput) nInQueue <= nInQueue;
-        end
-    end
 
     //-----//
     // HIM //
@@ -148,7 +178,7 @@ module hxmpp(
         .writeRow(HCM_newOutput && ~read),
         .inputRowToWrite(HIM_address),
         .readRow(read),
-        .inputRowToRead(readSSID),
+        .inputRowToRead(readHIM_address),
         .inputHitInfo(HCM_newHitInfo),
         .nOldHits(HCM_nOldHits),
         .nNewHits(HCM_nNewHits),
