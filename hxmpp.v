@@ -12,12 +12,18 @@ module hxmpp(
     input [HITINFOBITS-1:0] writeHitInfo,
     input read,
     input [ROWINDEXBITS_HCM-1:0] readSSID,
-    output [SSIDBITS-1:0] SSID_read, // return value
-    output nHits, // return value
-    output [HITINFOBITS-1:0] hitInfo_read // return value
+    output readFinished,
+    output [SSIDBITS-1:0] SSID_read,
+    output hitThisEvent,
+    output [MAXHITNBITS-1:0] nHits,
+    output [NCOLS_HIM-1:0] hitInfo_read
     );
 
     `include "MyParameters.vh"
+
+    assign SSID_read = HNM_SSID_passed;
+    assign hitThisEvent = HNM_hitExisted;
+    assign nHits = readNHits;
 
     //-----//
     // HNM //
@@ -43,8 +49,8 @@ module hxmpp(
         .writeRow(0),
         .rowWrite(0),
         .dataWrite(0),
-        .SSID_read(0),
-        .read(0),
+        .read(read),
+        .SSID_read(readSSID),
         .rowRead(0),
         .readRow(0),
         .fillSequentialRows(0),
@@ -67,31 +73,34 @@ module hxmpp(
     // with the HIM address, how many hits were pre-existing, and the new hits
     // along with their info.
 
-    wire [ROWINDEXBITS_HCM-1:0] HCM_SSID_passed;
     wire [MAXHITNBITS-1:0] HCM_nOldHits;
     wire [MAXHITNBITS-1:0] HCM_nNewHits;
+    wire [MAXHITNBITS-1:0] readNHits;
     wire HCM_newOutput;
 
     wire HCM_readReady, HCM_writeReady, HCM_busy;
 
     wire [NCOLS_HIM-1:0] HCM_newHitInfo;
     wire [ROWINDEXBITS_HIM-1:0] HIM_address;
+    wire [SSIDBITS-1:0] placeholderRowPassed;
 
     HCMPP HCM (
         .clk(clk),
         .reset(reset),
-        .writeRow(HNM_newOutput),
+        .writeRow(HNM_newOutput && ~read),
         .inputRowToWrite(HNM_SSID_passed),
         .SSIDIsNew(~HNM_hitExisted),
-        .inputRowToRead(0),
-        .readRow(0),
+        .readRow(read),
+        .inputRowToRead(readSSID),
         .inputHitInfo(queueHitInfo[0]),
-        .rowPassed(HCM_SSID_passed),
+        .rowPassed(placeholderRowPassed),
         .nOldHits(HCM_nOldHits),
         .nNewHits(HCM_nNewHits),
+        .readNHits(readNHits),
         .HIM_address(HIM_address),
         .outputNewHitInfo(HCM_newHitInfo),
         .newOutput(HCM_newOutput),
+        .readFinished(readFinished),
         .writeReady(HCM_writeReady),
         .readReady(HCM_readReady),
         .busy(HCM_busy)
@@ -136,13 +145,14 @@ module hxmpp(
     HIMPP HIM (
         .clk(clk),
         .reset(reset),
-        .writeRow(HCM_newOutput),
+        .writeRow(HCM_newOutput && ~read),
         .inputRowToWrite(HIM_address),
-        .inputRowToRead(0),
-        .readRow(0),
+        .readRow(read),
+        .inputRowToRead(readSSID),
         .inputHitInfo(HCM_newHitInfo),
         .nOldHits(HCM_nOldHits),
         .nNewHits(HCM_nNewHits),
+        .hitInfo_read(hitInfo_read),
         .writeReady(HIM_writeReady),
         .readReady(HIM_readReady),
         .busy(HIM_busy)

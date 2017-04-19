@@ -4,7 +4,7 @@
 // Testbench for HXM //
 //-------------------//
 
-module Testbench_All(
+/*module Testbench_All(
     input clk_p,
     input clk_n
     );
@@ -19,14 +19,14 @@ module Testbench_All(
         .O(clk), // buffer output
         .I(clk_p), // diff_p buffer input (connect directly to top-level port)
         .IB(clk_n) // diff_n buffer input (connect directly to top-level port)
-    );
+    );*/
 
-/*module Testbench_All;
+module Testbench_All;
 
     wire clk;
     Clock clock(
         .clk(clk)
-    );*/
+    );
 
     `include "MyParameters.vh"
 
@@ -43,7 +43,10 @@ module Testbench_All(
     reg read = 0;
     reg [ROWINDEXBITS_HCM-1:0] readSSID;
 
+    wire readFinished;
     wire [SSIDBITS-1:0] SSID_read;
+    wire hitThisEvent;
+    wire [MAXHITNBITS-1:0] nHits;
     wire [HITINFOBITS-1:0] hitInfo_read;
 
     hxmpp hxm (
@@ -54,7 +57,10 @@ module Testbench_All(
         .writeHitInfo(writeHitInfo),
         .read(read),
         .readSSID(readSSID),
+        .readFinished(readFinished),
         .SSID_read(SSID_read),
+        .hitThisEvent(hitThisEvent),
+        .nHits(nHits),
         .hitInfo_read(hitInfo_read)
     );
 
@@ -63,7 +69,7 @@ module Testbench_All(
     //------------------//
 
     reg [2:0] testNumber = 0;
-    // 000 = none; 001 = store SSIDs from list
+    // 000 = none; 001 = store SSIDs from list; 010 = read SSIDs
 
     reg [2:0] currentTest = 0; // currently performing test number
     reg [5:0] testingIndex = 0; // SSID and hit info for reading and writing
@@ -78,6 +84,7 @@ module Testbench_All(
         //$monitor ("%b\t%d\t%d\t%b", HNM_newOutput, HNM_SSID_passed[SSIDBITS-1:COLINDEXBITS_HNM], HNM_SSID_passed[COLINDEXBITS_HNM-1:0], HNM_hitExisted);
         //$monitor ("%b\t%d\t%d\t%b", HCM_newOutput, HCM_SSID_passed[SSIDBITS-1:COLINDEXBITS_HNM], HCM_SSID_passed[COLINDEXBITS_HNM-1:0], HCM_nHits);
         //$monitor ("HCM\t%b\t%d\t%d\t%d\t%d\t%d\t%d\t%d\t%d\t%d\t%d", HCM_newOutput, HCM_SSID_passed, HCM_SSID_passed[SSIDBITS-1:COLINDEXBITS_HNM], HCM_SSID_passed[COLINDEXBITS_HNM-1:0], HCM_nOldHits, HCM_nNewHits, HIM_address, HCM_newHitInfo[ROWINDEXBITS_HCM-1:0], HCM_newHitInfo[HITINFOBITS+ROWINDEXBITS_HCM-1:HITINFOBITS], HCM_newHitInfo[HITINFOBITS*2+ROWINDEXBITS_HCM:HITINFOBITS*2], HCM_newHitInfo[HITINFOBITS*3+ROWINDEXBITS_HCM:HITINFOBITS*3]);
+        $monitor ("%b\t%d\t%b\t%d\t%d\t%d\t%d\t%d", readFinished, SSID_read, hitThisEvent, nHits, hitInfo_read[ROWINDEXBITS_HCM-1:0], hitInfo_read[HITINFOBITS+ROWINDEXBITS_HCM-1:HITINFOBITS], hitInfo_read[HITINFOBITS*2+ROWINDEXBITS_HCM:HITINFOBITS*2], hitInfo_read[HITINFOBITS*3+ROWINDEXBITS_HCM:HITINFOBITS*3]);
     end
 
     always @(posedge clk) begin
@@ -104,8 +111,13 @@ module Testbench_All(
         end
         if (currentTime == 201) testNumber <= 3'b000;
 
-        if (currentTime > 400) begin
-            reset <= 0;
+        if (currentTime == 400) begin
+            testNumber <= 3'b010; // reading SSIDs from list
+            $display ("Reading SSIDs from list");
+        end
+        if (currentTime == 401) testNumber <= 3'b000;
+
+        if (currentTime > 600) begin
             currentTime <= 0;
         end
 
@@ -114,12 +126,24 @@ module Testbench_All(
         //------------------//
 
         write <= 0;
+        read <= 0;
 
         if (currentTest == 3'b001) begin // store SSIDs from list
             write <= 1'b1; // write enabled
             writeSSID <= {testingSSID_row[testingIndex], testingSSID_col[testingIndex]};
             //writeHitInfo <= testingHitInfo[testingIndex];
             writeHitInfo <= {testingSSID_row[testingIndex], testingSSID_col[testingIndex]};
+            testingIndex <= testingIndex + 1; // increment index
+            if (testingIndex >= 22) begin // if the SSID we just read is the last one
+                testingIndex <= 0;
+                testNumber <= 3'b000; // stop testing
+                currentTest <= 0;
+            end
+        end
+
+        if (currentTest == 3'b010) begin // read SSIDs from list
+            read <= 1'b1; // read enabled
+            readSSID <= {testingSSID_row[testingIndex], testingSSID_col[testingIndex]};
             testingIndex <= testingIndex + 1; // increment index
             if (testingIndex >= 22) begin // if the SSID we just read is the last one
                 testingIndex <= 0;

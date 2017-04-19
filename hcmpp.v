@@ -14,9 +14,11 @@ module HCMPP(
     output reg [ROWINDEXBITS_HCM-1:0] rowPassed,
     output reg [MAXHITNBITS-1:0] nOldHits,
     output reg [MAXHITNBITS-1:0] nNewHits,
+    output reg [MAXHITNBITS-1:0] readNHits,
     output reg [ROWINDEXBITS_HIM-1:0] HIM_address,
     output reg [NCOLS_HIM-1:0] outputNewHitInfo,
     output reg newOutput,
+    output reg readFinished = 0,
     output reg busy
     );
 
@@ -75,6 +77,7 @@ module HCMPP(
     reg [ROWINDEXBITS_HCM-1:0] queueReadRow [QUEUESIZE-1:0];
     reg [QUEUESIZEBITS-1:0] nInReadQueue = 0;
     reg [QUEUESIZE-1:0] waitTimeReadQueue [2:0];
+    reg [QUEUESIZE-1:0] queueRequestedRead = 0;
 
     wire readQueueShifted;
     wire [QUEUESIZEBITS-1:0] nInReadQueueAfterShift;
@@ -140,6 +143,7 @@ module HCMPP(
             collisionDetected <= 0;
             nInReadQueue <= 0;
             nInWriteQueue <= 0;
+            readFinished <= 0;
         end
 
         else begin
@@ -169,12 +173,18 @@ module HCMPP(
                         queueReadRow[queueN] <= queueReadRow[queueN+1]; // pop an item
                         collisionDetected[queueN] <= collisionDetected[queueN+1];
                         dataPreviouslyWritten[queueN] <= dataPreviouslyWritten[queueN+1];
+                        queueRequestedRead[queueN] <= queueRequestedRead[queueN+1]; // pop an item
                     end
                     nInReadQueue <= nInReadQueue - 1; // reduce number of items in queue
+
+                    readFinished <= 1'b0;
+                    if (queueRequestedRead[0]) readFinished <= 1; // only for requested reads
+                    readNHits <= dataRead[MAXHITNBITS-1:0];
 
                     if (collisionDetected[0]) begin
                         //$display("Non-collision result for row %d is %b", queueReadRow[0], dataRead);
                         //$display("Data previously written for row %d was %b", queueReadRow[0], dataPreviouslyWritten[0]);
+                        readNHits <= dataPreviouslyWritten[0][MAXHITNBITS-1:0];
                     end
                 end
             end
@@ -287,6 +297,9 @@ module HCMPP(
                 queueReadRow[nInReadQueueAfterShift] <= writeRow ? inputRowToWrite : inputRowToRead; // place row in queue until read completes
                 waitTimeReadQueue[nInReadQueueAfterShift] <= BRAM_READDELAY; // set the wait time
                 nInReadQueue <= nInReadQueueAfterShift + 1; // increase the number of items in queue
+
+                if (readRow) queueRequestedRead[nInReadQueueAfterShift] <= 1; // mark as a silent read
+                else queueRequestedRead[nInReadQueueAfterShift] <= 0; // regular read (pass along results)
             end
 
             //-------------------//

@@ -87,6 +87,7 @@ module HNMPP(
     reg [QUEUESIZE-1:0] queueReadWholeRow = 0; // may not be useful - keeping in code for now
     reg [QUEUESIZEBITS-1:0] nInReadQueue = 0;
     reg [QUEUESIZE-1:0] waitTimeReadQueue [2:0];
+    reg [QUEUESIZE-1:0] queueRequestedRead = 0; // whether to block result from going to HCM
 
     wire readQueueShifted;
     wire [QUEUESIZEBITS-1:0] nInReadQueueAfterShift;
@@ -150,6 +151,7 @@ module HNMPP(
     initial begin
         //$monitor ("%g\t%b\t%b\t%b", $time, writeToBRAM, rowToWrite, dataToWrite[6:0]);
         //$monitor ("%b\t%b\t%b\t%b", debugQueueWriteRow[0], debugQueueNewHitsRow[0], debugRowToRead, debugNInReadQueue);
+        //$monitor ("%d\t%b\t%b", SSID_passed, HNM_readOutput, newOutput);
     end
 
     /*initial begin
@@ -328,10 +330,12 @@ module HNMPP(
                         collisionDetected[queueN] <= collisionDetected[queueN+1];
                         queueReadWholeRow[queueN] <= queueReadWholeRow[queueN+1]; // pop an item
                         dataPreviouslyWritten[queueN] <= dataPreviouslyWritten[queueN+1];
+                        queueRequestedRead[queueN] <= queueRequestedRead[queueN+1]; // pop an item
                     end
                     nInReadQueue <= nInReadQueue - 1; // reduce number of items in queue
 
                     newOutput <= 1'b1;
+                    if (queueRequestedRead[0]) newOutput <= 0; // don't flag the HCM to start if we're just doing a read
                     rowPassed <= queueReadRow[0];
                     rowReadOutput <= dataRead;
                     SSID_passed <= {queueReadRow[0], queueReadCol[0]};
@@ -441,6 +445,7 @@ module HNMPP(
                 queueReadWholeRow[nInReadQueueAfterShift] <= 0; // mark as a single-SSID read
                 waitTimeReadQueue[nInReadQueueAfterShift] <= BRAM_READDELAY; // set the wait time
                 nInReadQueue <= nInReadQueueAfterShift + 1; // increase the number of items in queue
+                queueRequestedRead[nInReadQueueAfterShift] <= 1; // mark as a silent read (don't pass to HCM)
             end
 
             //-----------------------//

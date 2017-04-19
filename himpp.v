@@ -10,6 +10,7 @@ module HIMPP(
     input [NCOLS_HIM-1:0] inputHitInfo,
     input [MAXHITNBITS-1:0] nOldHits,
     input [MAXHITNBITS-1:0] nNewHits,
+    output reg [NCOLS_HIM-1:0] hitInfo_read,
     output reg writeReady,
     output reg readReady,
     output reg busy
@@ -97,7 +98,7 @@ module HIMPP(
     initial begin
         //$monitor ("%g\t%b\t%b\t%b", $time, writeToBRAM, rowToWrite, dataToWrite[6:0]);
         //$monitor ("%b\t%b\t%b\t%b", debugQueueWriteRow[0], debugQueueNewHitsRow[0], debugRowToRead, debugNInReadQueue);
-        $monitor ("HIM\t%b\t%d\t%d\t%d\t%d\t%d", writeToBRAM, rowToWrite, dataToWrite[ROWINDEXBITS_HCM-1:0], dataToWrite[HITINFOBITS+ROWINDEXBITS_HCM-1:HITINFOBITS], dataToWrite[HITINFOBITS*2+ROWINDEXBITS_HCM:HITINFOBITS*2], dataToWrite[HITINFOBITS*3+ROWINDEXBITS_HCM:HITINFOBITS*3]);
+        //$monitor ("HIM\t%b\t%d\t%d\t%d\t%d\t%d", writeToBRAM, rowToWrite, dataToWrite[ROWINDEXBITS_HCM-1:0], dataToWrite[HITINFOBITS+ROWINDEXBITS_HCM-1:HITINFOBITS], dataToWrite[HITINFOBITS*2+ROWINDEXBITS_HCM:HITINFOBITS*2], dataToWrite[HITINFOBITS*3+ROWINDEXBITS_HCM:HITINFOBITS*3]);
     end
 
     always @(posedge clk) begin
@@ -136,8 +137,11 @@ module HIMPP(
                         dataPreviouslyWritten[queueN] <= dataPreviouslyWritten[queueN+1];
                     end
                     nInReadQueue <= nInReadQueue - 1; // reduce number of items in queue
+$display("Row %d", queueReadRow[0]);
+                    hitInfo_read <= dataRead;
 
                     if (collisionDetected[0]) begin
+                        hitInfo_read <= dataPreviouslyWritten[0];
                         //$display("Non-collision result for row %d is %b", queueReadRow[0], dataRead);
                         //$display("Data previously written for row %d was %b", queueReadRow[0], dataPreviouslyWritten[0]);
                     end
