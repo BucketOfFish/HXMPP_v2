@@ -151,7 +151,7 @@ module HNMPP(
     initial begin
         //$monitor ("%g\t%b\t%b\t%b", $time, writeToBRAM, rowToWrite, dataToWrite[6:0]);
         //$monitor ("%b\t%b\t%b\t%b", debugQueueWriteRow[0], debugQueueNewHitsRow[0], debugRowToRead, debugNInReadQueue);
-        //$monitor ("%d\t%b\t%b", SSID_passed, HNM_readOutput, newOutput);
+        //$monitor ("SSID\t%d\t%b\t%b", SSID_passed, HNM_readOutput, newOutput);
     end
 
     /*initial begin

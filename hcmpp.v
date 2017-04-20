@@ -19,7 +19,7 @@ module HCMPP(
     output reg [ROWINDEXBITS_HIM-1:0] HIM_address,
     output reg [NCOLS_HIM-1:0] outputNewHitInfo,
     output reg newOutput,
-    output reg readFinished = 0,
+    output reg readFinished,
     output reg busy
     );
 
@@ -155,6 +155,7 @@ module HCMPP(
 
             writeToBRAM <= 1'b0; // don't write
             newOutput <= 1'b0; // we did not just read something out
+            readFinished <= 0;
 
             //----------------------------------//
             // MOVE QUEUE AND RETURN READ VALUE //
@@ -178,8 +179,9 @@ module HCMPP(
                     end
                     nInReadQueue <= nInReadQueue - 1; // reduce number of items in queue
 
-                    readFinished <= 1'b0;
-                    if (queueRequestedRead[0]) readFinished <= 1; // only for requested reads
+                    if (queueRequestedRead[0]) begin
+                        readFinished <= 1; // only for requested reads
+                    end
                     readNHits <= dataRead[MAXHITNBITS-1:0];
                     readHIM_address <= dataRead[NCOLS_HCM-1:MAXHITNBITS];
 

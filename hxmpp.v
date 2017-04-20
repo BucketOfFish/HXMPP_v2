@@ -12,15 +12,19 @@ module hxmpp(
     input [HITINFOBITS-1:0] writeHitInfo,
     input read,
     input [ROWINDEXBITS_HCM-1:0] readSSID,
-    output readFinished,
-    output [SSIDBITS-1:0] SSID_read,
-    output hitThisEvent,
-    output [MAXHITNBITS-1:0] nHits,
-    output [NCOLS_HIM-1:0] hitInfo_read
+    output reg readFinished,
+    output reg [SSIDBITS-1:0] SSID_readReturn,
+    output reg hitThisEventReturn,
+    output reg [MAXHITNBITS-1:0] nHitsReturn,
+    output reg [NCOLS_HIM-1:0] hitInfo_readReturn
     );
 
     `include "MyParameters.vh"
 
+    wire [SSIDBITS-1:0] SSID_read;
+    wire hitThisEvent;
+    wire [MAXHITNBITS-1:0] nHits;
+    
     assign SSID_read = HNM_SSID_passed;
     assign hitThisEvent = HNM_hitExisted;
     assign nHits = readNHits;
@@ -29,28 +33,41 @@ module hxmpp(
     // READ OUTPUT QUEUE //
     //-------------------//
 
-/*
-    reg [NCOLS_HIM-1:0] queueHitInfo [QUEUESIZE-1:0];
-    reg [QUEUESIZEBITS-1:0] nInQueue = 0;
+    reg [SSIDBITS-1:0] queueSSID_read [QUEUESIZE-1:0];
+    reg [QUEUESIZE-1:0] queueHitThisEvent;
+    reg [MAXHITNBITS-1:0] queueNHits [QUEUESIZE-1:0];
+    reg [QUEUESIZEBITS-1:0] nInReadoutQueue = 0;
 
-    reg [QUEUESIZEBITS-1:0] queueN = 0; // can't do loop variable declaration
+    reg [QUEUESIZEBITS-1:0] readoutQueueN = 0; // can't do loop variable declaration
 
     always @(posedge clk) begin
 
-        if (HNM_newOutput) begin // if the first item has been used
-            for (queueN = 0; queueN < QUEUESIZE - 1; queueN = queueN + 1) begin
-                queueHitInfo[queueN] <= queueHitInfo[queueN+1]; // pop an item
-            end
-            nInQueue <= nInQueue - 1;
+        readFinished <= 0;
+
+        if (HCM_readoutFinished) begin // add info to queue while waiting to read HIM
+            queueSSID_read[nInReadoutQueue - HIM_readoutFinished] <= SSID_read;
+            queueHitThisEvent[nInReadoutQueue - HIM_readoutFinished] <= hitThisEvent;
+            queueNHits[nInReadoutQueue - HIM_readoutFinished] <= nHits;
+            nInReadoutQueue <= nInReadoutQueue + 1;
+            if (HIM_readoutFinished) nInReadoutQueue <= nInReadoutQueue;
         end
 
-        if (write) begin
-            queueHitInfo[nInQueue - HNM_newOutput] <= writeHitInfo; // add hit info to queue for new hit
-            nInQueue <= nInQueue + 1;
-            if (HNM_newOutput) nInQueue <= nInQueue;
+        if (HIM_readoutFinished) begin // time to return info
+            for (readoutQueueN = 0; readoutQueueN < QUEUESIZE - 1; readoutQueueN = readoutQueueN + 1) begin
+                queueSSID_read[readoutQueueN] <= queueSSID_read[readoutQueueN+1]; // pop an item
+                queueHitThisEvent[readoutQueueN] <= queueHitThisEvent[readoutQueueN+1]; // pop an item
+                queueNHits[readoutQueueN] <= queueNHits[readoutQueueN+1]; // pop an item
+            end
+            nInReadoutQueue <= nInReadoutQueue - 1;
+            if (HCM_readoutFinished) nInReadoutQueue <= nInReadoutQueue;
+
+            readFinished <= 1;
+            SSID_readReturn <= queueSSID_read[0];
+            hitThisEventReturn <= queueHitThisEvent[0];
+            nHitsReturn <= queueNHits[0];
+            hitInfo_readReturn <= hitInfo_read;
         end
     end
-*/
 
     //----------------//
     // HIT INFO QUEUE //
@@ -139,6 +156,7 @@ module hxmpp(
     wire [SSIDBITS-1:0] placeholderRowPassed;
 
     wire [ROWINDEXBITS_HIM-1:0] readHIM_address;
+    wire HCM_readoutFinished;
 
     HCMPP HCM (
         .clk(clk),
@@ -157,7 +175,7 @@ module hxmpp(
         .HIM_address(HIM_address),
         .outputNewHitInfo(HCM_newHitInfo),
         .newOutput(HCM_newOutput),
-        .readFinished(readFinished),
+        .readFinished(HCM_readoutFinished),
         .writeReady(HCM_writeReady),
         .readReady(HCM_readReady),
         .busy(HCM_busy)
@@ -171,18 +189,20 @@ module hxmpp(
     // hits, new hits, and hit info.
 
     wire HIM_readReady, HIM_writeReady, HIM_busy;
+    wire [NCOLS_HIM-1:0] hitInfo_read;
 
     HIMPP HIM (
         .clk(clk),
         .reset(reset),
         .writeRow(HCM_newOutput && ~read),
         .inputRowToWrite(HIM_address),
-        .readRow(read),
+        .readRow(HCM_readoutFinished),
         .inputRowToRead(readHIM_address),
         .inputHitInfo(HCM_newHitInfo),
         .nOldHits(HCM_nOldHits),
         .nNewHits(HCM_nNewHits),
         .hitInfo_read(hitInfo_read),
+        .readFinished(HIM_readoutFinished),
         .writeReady(HIM_writeReady),
         .readReady(HIM_readReady),
         .busy(HIM_busy)

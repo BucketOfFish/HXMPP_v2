@@ -5,12 +5,13 @@ module HIMPP(
     input reset,
     input writeRow,
     input [ROWINDEXBITS_HIM-1:0] inputRowToWrite,
-    input [ROWINDEXBITS_HIM-1:0] inputRowToRead,
     input readRow,
+    input [ROWINDEXBITS_HIM-1:0] inputRowToRead,
     input [NCOLS_HIM-1:0] inputHitInfo,
     input [MAXHITNBITS-1:0] nOldHits,
     input [MAXHITNBITS-1:0] nNewHits,
     output reg [NCOLS_HIM-1:0] hitInfo_read,
+    output reg readFinished = 0,
     output reg writeReady,
     output reg readReady,
     output reg busy
@@ -72,6 +73,7 @@ module HIMPP(
     reg [ROWINDEXBITS_HIM-1:0] queueReadRow [QUEUESIZE-1:0];
     reg [QUEUESIZEBITS-1:0] nInReadQueue = 0;
     reg [QUEUESIZE-1:0] waitTimeReadQueue [2:0];
+    reg [QUEUESIZE-1:0] queueRequestedRead = 0;
 
     wire readQueueShifted;
     wire [QUEUESIZEBITS-1:0] nInReadQueueAfterShift;
@@ -116,6 +118,7 @@ module HIMPP(
             //----------------//
 
             writeToBRAM <= 1'b0; // don't write
+            readFinished <= 0;
 
             //----------------------------------//
             // MOVE QUEUE AND RETURN READ VALUE //
@@ -135,6 +138,7 @@ module HIMPP(
                         queueReadRow[queueN] <= queueReadRow[queueN+1]; // pop an item
                         collisionDetected[queueN] <= collisionDetected[queueN+1];
                         dataPreviouslyWritten[queueN] <= dataPreviouslyWritten[queueN+1];
+                        queueRequestedRead[queueN] <= queueRequestedRead[queueN+1]; // pop an item
                     end
                     nInReadQueue <= nInReadQueue - 1; // reduce number of items in queue
                     hitInfo_read <= dataRead;
@@ -144,6 +148,8 @@ module HIMPP(
                         //$display("Non-collision result for row %d is %b", queueReadRow[0], dataRead);
                         //$display("Data previously written for row %d was %b", queueReadRow[0], dataPreviouslyWritten[0]);
                     end
+
+                    if (queueRequestedRead[0]) readFinished <= 1; // only for requested reads
                 end
             end
 
@@ -240,6 +246,9 @@ module HIMPP(
                 queueReadRow[nInReadQueueAfterShift] <= writeRow ? inputRowToWrite : inputRowToRead; // place row in queue until read completes
                 waitTimeReadQueue[nInReadQueueAfterShift] <= BRAM_READDELAY; // set the wait time
                 nInReadQueue <= nInReadQueueAfterShift + 1; // increase the number of items in queue
+
+                if (readRow) queueRequestedRead[nInReadQueueAfterShift] <= 1;
+                else queueRequestedRead[nInReadQueueAfterShift] <= 0;
             end
 
             //-------------------//

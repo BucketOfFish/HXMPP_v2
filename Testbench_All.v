@@ -58,10 +58,10 @@ module Testbench_All;
         .read(read),
         .readSSID(readSSID),
         .readFinished(readFinished),
-        .SSID_read(SSID_read),
-        .hitThisEvent(hitThisEvent),
-        .nHits(nHits),
-        .hitInfo_read(hitInfo_read)
+        .SSID_readReturn(SSID_read),
+        .hitThisEventReturn(hitThisEvent),
+        .nHitsReturn(nHits),
+        .hitInfo_readReturn(hitInfo_read)
     );
 
     //------------------//
